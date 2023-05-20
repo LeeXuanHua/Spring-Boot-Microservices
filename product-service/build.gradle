@@ -1,0 +1,40 @@
+plugins {
+	id 'java'
+	id 'org.springframework.boot' version '3.1.0' apply true
+	id 'io.spring.dependency-management' version '1.1.0'
+}
+
+group = 'com.microservices'
+version = '0.0.1-SNAPSHOT'
+sourceCompatibility = '17'
+
+configurations {
+	compileOnly {
+		extendsFrom annotationProcessor
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+//// To use as a library (and not boot up a Spring application), we need to disable the Spring Boot plugin
+//// Uncomment this and change id 'org.springframework.boot' version '3.1.0' "apply true" to "apply false"
+//// https://stackoverflow.com/questions/55730223/create-a-librairie-for-springboot-using-gradle-without-doing-bootjar
+//dependencyManagement {
+//	imports {
+//		mavenBom org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES
+//	}
+//}
+
+dependencies {
+	implementation 'org.springframework.boot:spring-boot-starter-data-mongodb'
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+	compileOnly 'org.projectlombok:lombok'
+	annotationProcessor 'org.projectlombok:lombok'
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+}
