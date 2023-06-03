@@ -1,4 +1,4 @@
-# Spring Boot Microservice - (Simple) Online Shopping Application
+# Spring Boot Microservice - Online Shopping Application
 This project is inspired by: [Video](https://www.youtube.com/watch?v=mPPhcU7oWDU&t=20634s), [Source Code](https://github.com/SaiUpadhyayula/spring-boot-microservices)
 
 This project features the following:
@@ -10,27 +10,34 @@ This project features the following:
 System Architecture:
 ![Application System Architecture](/figure/System%20Architecture.png)
 
-# Getting Started
-
-### Pre-requisites
+## Pre-requisites
 1. Java SDK 11
 2. MySQL
 3. MongoDB
 
-### How to Run
+## How to Run
 Depending on use case, here are some commonly used commands:
 ```bash
 # Clone this repository and change directory
 git clone https://github.com/LeeXuanHua/Spring-Boot-Microservices.git
 cd spring-boot-microservices
+gradlew clean build bootRun
 ```
 
+## How to Test Manually via Postman
+Refer to [Testing](./Testing.md).
 
-### Changes from Video Tutorial
+
+## Changes from Video Tutorial
 1. Used Gradle instead of Maven
+2. Implemented testings & added Jacoco for test coverage
 
 
-### Other Reference Documentation
+## Notes & Learnings
+Refer to [Learning Summary](./LearningSummary.md).
+
+
+## Other Reference Documentation
 * [Spring Cloud](https://spring.io/cloud)
 * [Spring Web](https://docs.spring.io/spring-boot/docs/3.1.0/reference/htmlsingle/#web)
 * [Spring Data](https://docs.spring.io/spring-boot/docs/3.1.0/reference/htmlsingle/#data)
