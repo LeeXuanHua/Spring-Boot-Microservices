@@ -19,19 +19,14 @@ repositories {
 	mavenCentral()
 }
 
-ext {
-	set('springCloudVersion', "2022.0.3")
-}
-
-// To use as a library (and not boot up a Spring application), we need to disable the Spring Boot plugin
-// Uncomment this and change id 'org.springframework.boot' version '3.1.0' "apply true" to "apply false"
-// https://stackoverflow.com/questions/55730223/create-a-librairie-for-springboot-using-gradle-without-doing-bootjar
-dependencyManagement {
-	imports {
+//// To use as a library (and not boot up a Spring application), we need to disable the Spring Boot plugin
+//// Uncomment this and change id 'org.springframework.boot' version '3.1.0' "apply true" to "apply false"
+//// https://stackoverflow.com/questions/55730223/create-a-librairie-for-springboot-using-gradle-without-doing-bootjar
+//dependencyManagement {
+//	imports {
 //		mavenBom org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES
-		mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
-	}
-}
+//	}
+//}
 
 // implementation means that the dependency is required to compile the project
 // compileOnly means that the dependency is required to compile the project, but should be provided at runtime
@@ -39,19 +34,19 @@ dependencyManagement {
 // api means that the dependency is both required to compile the project and is exported to consumers
 // runtimeOnly means that the dependency is only available at runtime and not required for compilation
 
+ext {
+	set('springCloudVersion', "2022.0.3")
+}
+
 dependencies {
-	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-	implementation 'org.springframework.boot:spring-boot-starter-web'
-	implementation 'org.springframework.boot:spring-boot-starter-webflux'
-	implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
-	compileOnly 'org.projectlombok:lombok'
-	runtimeOnly 'com.mysql:mysql-connector-j'
-	annotationProcessor 'org.projectlombok:lombok'
+	implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-server'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
-	implementation platform('org.testcontainers:testcontainers-bom:1.18.1') //import bom
-	testImplementation('org.testcontainers:mysql') //no version specified
-	testImplementation 'org.testcontainers:junit-jupiter'
-	testImplementation 'org.mockito:mockito-junit-jupiter:2.23.0'
+}
+
+dependencyManagement {
+	imports {
+		mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+	}
 }
 
 tasks.named('test') {

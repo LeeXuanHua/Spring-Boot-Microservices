@@ -19,23 +19,30 @@ repositories {
 	mavenCentral()
 }
 
-//// To use as a library (and not boot up a Spring application), we need to disable the Spring Boot plugin
-//// Uncomment this and change id 'org.springframework.boot' version '3.1.0' "apply true" to "apply false"
-//// https://stackoverflow.com/questions/55730223/create-a-librairie-for-springboot-using-gradle-without-doing-bootjar
-//dependencyManagement {
-//	imports {
+ext {
+	set('springCloudVersion', "2022.0.3")
+}
+
+// To use as a library (and not boot up a Spring application), we need to disable the Spring Boot plugin
+// Uncomment this and change id 'org.springframework.boot' version '3.1.0' "apply true" to "apply false"
+// https://stackoverflow.com/questions/55730223/create-a-librairie-for-springboot-using-gradle-without-doing-bootjar
+dependencyManagement {
+	imports {
 //		mavenBom org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES
-//	}
-//}
+		mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+	}
+}
 
 // implementation means that the dependency is required to compile the project
 // compileOnly means that the dependency is required to compile the project, but should be provided at runtime
 // testImplementation means that the dependency is only available for the test compilation and execution phases
 // api means that the dependency is both required to compile the project and is exported to consumers
 // runtimeOnly means that the dependency is only available at runtime and not required for compilation
+
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-mongodb'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'

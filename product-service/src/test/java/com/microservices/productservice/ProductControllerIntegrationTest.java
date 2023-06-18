@@ -24,6 +24,8 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
+import java.math.BigDecimal;
+
 import static org.mockito.Mockito.mock;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -63,7 +65,11 @@ public class ProductControllerIntegrationTest {
     @Test
     @DisplayName("Product is added to database successfully")
     public void createProductTest() throws Exception {
-        ProductRequest productRequest = mock(ProductRequest.class);
+        ProductRequest productRequest = ProductRequest.builder()
+                .name("Test Product")
+                .description("Test Description")
+                .price(BigDecimal.valueOf(1.0))
+                .build();
         String productRequestString = objectMapper.writeValueAsString(productRequest);	// Convert the object to JSON string
         mockMvc.perform(MockMvcRequestBuilders.post("/api/product")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -86,7 +92,11 @@ public class ProductControllerIntegrationTest {
     @Test
     @DisplayName("Identical products are added to database and queried successfully")
     public void getAllProductsTest() throws Exception {
-        ProductRequest productRequest = mock(ProductRequest.class);
+        ProductRequest productRequest = ProductRequest.builder()
+                .name("Test Product")
+                .description("Test Description")
+                .price(BigDecimal.valueOf(1.0))
+                .build();
         String productRequestString = objectMapper.writeValueAsString(productRequest);
 
         mockMvc.perform(MockMvcRequestBuilders.post("/api/product")

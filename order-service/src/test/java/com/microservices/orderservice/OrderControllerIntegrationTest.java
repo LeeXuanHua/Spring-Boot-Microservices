@@ -57,7 +57,7 @@ public class OrderControllerIntegrationTest {
     @Autowired
     private OrderRepository orderRepository;
     @MockBean
-    private WebClient webClient;
+    private WebClient.Builder webClientBuilder;
     private String skuCode;
     private BigDecimal price;
     private int quantity;
@@ -106,10 +106,12 @@ public class OrderControllerIntegrationTest {
         };
 
         // Mock WebClient's initial call to the inventory service to obtain the inventory status of the products
+        WebClient webClient = mock(WebClient.class);
         WebClient.RequestHeadersUriSpec requestHeadersUriSpec = mock(WebClient.RequestHeadersUriSpec.class);
         WebClient.RequestHeadersSpec requestHeadersSpec = mock(WebClient.RequestHeadersSpec.class);
         WebClient.ResponseSpec responseSpec = mock(WebClient.ResponseSpec.class);
 
+        when(webClientBuilder.build()).thenReturn(webClient);
         when(webClient.get()).thenReturn(requestHeadersUriSpec);
         when(requestHeadersUriSpec.uri(any(String.class), any(Function.class))).thenReturn(requestHeadersSpec);
         when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);

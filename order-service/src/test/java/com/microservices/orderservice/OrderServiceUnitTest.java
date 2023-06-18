@@ -40,7 +40,7 @@ class OrderServiceUnitTest {
     @InjectMocks
     private OrderService orderService;
     @Mock
-    private WebClient webClient;
+    private WebClient.Builder webClientBuilder;
     private long id;
     private String skuCode;
     private BigDecimal price;
@@ -118,6 +118,7 @@ class OrderServiceUnitTest {
         List<String> skuCodes = List.of(skuCode1, skuCode2);
 
         // Mock WebClient's initial call to the inventory service to obtain the inventory status of the products
+        WebClient webClient = mock(WebClient.class);
         WebClient.RequestHeadersUriSpec requestHeadersUriSpec = mock(WebClient.RequestHeadersUriSpec.class);
         WebClient.RequestHeadersSpec requestHeadersSpec = mock(WebClient.RequestHeadersSpec.class);
         WebClient.ResponseSpec responseSpec = mock(WebClient.ResponseSpec.class);
@@ -125,6 +126,7 @@ class OrderServiceUnitTest {
 //        URI uri = mock(URI.class);
 //        Function<UriBuilder, URI> function = a -> a.queryParam("skuCode", skuCodes).build();
 
+        when(webClientBuilder.build()).thenReturn(webClient);
         when(webClient.get()).thenReturn(requestHeadersUriSpec);
 //        when(uriBuilder.queryParam(any(String.class), any(List.class))).thenReturn(uriBuilder);     // Unnecessary stubbing - Resolved by defining as lenient
 //        when(uriBuilder.build()).thenReturn(uri);                                                   // Unnecessary stubbing - Resolved by defining as lenient
@@ -155,9 +157,9 @@ class OrderServiceUnitTest {
                     orderRequest.getOrderLineItemsDtoList().stream().map(orderService::mapToOrderLineItem).toList(),
                     orderRepository.findAll().get(0).getOrderLineItemsList());
 
-            // Verify that the webClient's get and post methods were called exactly once
-            verify(webClient, times(1)).get();
-            verify(webClient, times(1)).post();
+            // Verify that the webClientBuilder.build()'s get and post methods were called exactly once
+            verify(webClientBuilder.build(), times(1)).get();
+            verify(webClientBuilder.build(), times(1)).post();
 
         } else {
             // If one of the products is out of stock, the order should not be placed
@@ -188,11 +190,13 @@ class OrderServiceUnitTest {
                 new InventoryResponse(skuCode, true)
         };
 
+        WebClient webClient = mock(WebClient.class);
         WebClient.RequestHeadersUriSpec requestHeadersUriSpec = mock(WebClient.RequestHeadersUriSpec.class);
         WebClient.RequestHeadersSpec requestHeadersSpec = mock(WebClient.RequestHeadersSpec.class);
         WebClient.ResponseSpec responseSpec = mock(WebClient.ResponseSpec.class);
-        Mono mono = mock(Mono.just(inventoryResponse).getClass());
+        Mono mono = mock(Mono.class);
 
+        when(webClientBuilder.build()).thenReturn(webClient);
         when(webClient.get()).thenReturn(requestHeadersUriSpec);
         when(requestHeadersUriSpec.uri(any(String.class), any(Function.class))).thenReturn(requestHeadersSpec);
         when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
@@ -224,11 +228,13 @@ class OrderServiceUnitTest {
                 new InventoryResponse(skuCode, true)
         };
 
+        WebClient webClient = mock(WebClient.class);
         WebClient.RequestHeadersUriSpec requestHeadersUriSpec = mock(WebClient.RequestHeadersUriSpec.class);
         WebClient.RequestHeadersSpec requestHeadersSpec = mock(WebClient.RequestHeadersSpec.class);
         WebClient.ResponseSpec responseSpec = mock(WebClient.ResponseSpec.class);
-        Mono mono = mock(Mono.just(inventoryResponse).getClass());
+        Mono mono = mock(Mono.class);
 
+        when(webClientBuilder.build()).thenReturn(webClient);
         when(webClient.get()).thenReturn(requestHeadersUriSpec);
         when(requestHeadersUriSpec.uri(any(String.class), any(Function.class))).thenReturn(requestHeadersSpec);
         when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);

@@ -24,7 +24,7 @@ import java.util.UUID;
 @Transactional
 public class OrderService {
     private final OrderRepository orderRepository;
-    private final WebClient webClient;
+    private final WebClient.Builder webClientBuilder;
 
     /**
      * Places an order via OrderRequest, which may consist of 1 or more Order. UUIDs are created for each Order
@@ -46,8 +46,8 @@ public class OrderService {
                 .toList();
 
         // Call inventory-service and place order if product is in stock
-        InventoryResponse[] inventoryResponseArray = webClient.get()
-                .uri("http://localhost:8082/api/inventory",
+        InventoryResponse[] inventoryResponseArray = webClientBuilder.build().get()
+                .uri("http://inventory-service/api/inventory",
                         uriBuilder -> uriBuilder.queryParam("skuCode", skuCodes).build())
                 .retrieve()
                 .bodyToMono(InventoryResponse[].class)  // Reads the response body and converts it to a Mono
@@ -70,8 +70,8 @@ public class OrderService {
                                     .quantity(orderLineItem.getQuantity())
                                     .build()
                     ).toList();
-            webClient.post()
-                    .uri("http://localhost:8082/api/inventory/decrement")
+            webClientBuilder.build().post()
+                    .uri("http://inventory-service/api/inventory/decrement")
                     .bodyValue(inventoryRequests)
                     .retrieve()
                     .bodyToMono(Void.class)
