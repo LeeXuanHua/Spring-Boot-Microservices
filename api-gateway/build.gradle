@@ -1,0 +1,90 @@
+plugins {
+	id 'java'
+	id 'org.springframework.boot' version '3.1.0' apply true
+	id 'io.spring.dependency-management' version '1.1.0'
+	id 'jacoco'
+}
+
+group = 'com.microservices'
+version = '0.0.1-SNAPSHOT'
+sourceCompatibility = '17'
+
+configurations {
+	compileOnly {
+		extendsFrom annotationProcessor
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+ext {
+	set('springCloudVersion', "2022.0.3")
+}
+
+// To use as a library (and not boot up a Spring application), we need to disable the Spring Boot plugin
+// Uncomment this and change id 'org.springframework.boot' version '3.1.0' "apply true" to "apply false"
+// https://stackoverflow.com/questions/55730223/create-a-librairie-for-springboot-using-gradle-without-doing-bootjar
+dependencyManagement {
+	imports {
+//		mavenBom org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES
+		mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+	}
+}
+
+// implementation means that the dependency is required to compile the project
+// compileOnly means that the dependency is required to compile the project, but should be provided at runtime
+// testImplementation means that the dependency is only available for the test compilation and execution phases
+// api means that the dependency is both required to compile the project and is exported to consumers
+// runtimeOnly means that the dependency is only available at runtime and not required for compilation
+
+dependencies {
+	implementation 'org.springframework.cloud:spring-cloud-starter-gateway'
+	implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+}
+
+jacoco {
+	toolVersion = "0.8.8"
+	reportsDirectory = layout.buildDirectory.dir('customJacocoReportDir')
+}
+
+test {
+	finalizedBy jacocoTestReport // report is always generated after tests run
+}
+
+jacocoTestReport {
+	dependsOn test // tests are required to run before generating the report
+	reports {
+		xml.required = false
+		csv.required = false
+		html.outputLocation = layout.buildDirectory.dir('jacocoHtml')
+	}
+}
+
+jacocoTestCoverageVerification {
+	violationRules {
+		rule {
+			limit {
+				minimum = 0.5			// minimum coverage percentage
+			}
+		}
+
+		rule {
+			enabled = false				// disable rule
+			element = 'CLASS'			// element to check coverage on
+			includes = ['org.gradle.*']	// classes to check coverage on
+
+			limit {
+				counter = 'LINE'		// coverage counter to check
+				value = 'TOTALCOUNT'	// coverage counter value to check
+				maximum = 0.3			// maximum coverage percentage
+			}
+		}
+	}
+}
