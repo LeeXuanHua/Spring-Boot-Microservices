@@ -10,15 +10,17 @@
 4. [Inter-Process Communication](#inter-process-communication)
     - [Basics to Servlet (Spring MVC) vs Reactive (Spring WebFlux)](#basics-to-servlet--spring-mvc--vs-reactive--spring-webflux-)
 4. [Spring Boot Cloud](#spring-boot-cloud)
-    - [API Gateway](#api-gateway)
     - [Service Discovery](#service-discovery)
-    - [Load Balancing](#load-balancing)
+    - [Load Balancer (Client-Side)](#load-balancer--client-side-)
+    - [API Gateway](#api-gateway)
     - [Circuit Breaker](#circuit-breaker)
+    - [Configuration Server](#config-server)
     - [Distributed Tracing](#distributed-tracing)
-    - [Configuration Management](#configuration-management)
-    - [Message Broker](#message-broker)
+    - [Fault Tolerance](#fault-tolerance)
+    - [Messaging / Message Broker](#messaging--message-broker)
     - [Distributed Session](#distributed-session)
     - [Distributed Cache](#distributed-cache)
+    - [Monitoring](#distributed-tracing)
 4. [Spring Boot Security](#spring-boot-security)
 5. [Spring Boot Logging](#spring-boot-logging)
 
@@ -164,14 +166,35 @@
 
 ## Spring Boot Cloud
 
-### API Gateway
-- API Gateway is a single entry point for all the microservices
-
 ### Service Discovery
 - Service Discovery is used to register and discover microservices
+- Problem It Addresses: Without this, REST calls via `WebClient` is made to a hard-coded URL, which may change (i.e. different IP and port)
+  ![Problem Service Discovery Addresses](/figure/ServiceDiscovery_VariableUrl.png)
+- How It Works: Microservices register themselves to the Service Registry to be discovered
+  ![How Service Discovery Works](/figure/ServiceDiscovery_RegistryOverview.png)
+    - Discovery server will send the client a copy of the registry.
+    - Therefore, if client is unable to communicate with discovery server subsequently, it falls back to the local copy of the registry, before failing the communication.
+      ![Eureka Client Stores Registry Locally](/figure/ServiceDiscovery_ClientSide.png)
+    - We can test the above by stopping the Discovery Server (after client registration), and making an API call via Postman
+- Some Service Discovery Tools: Eureka, Consul, Zookeeper
+- In this project, we will be using Netflix's Eureka Service Discovery
+- To define a Eureka Server, annotate the main class with `@EnableEurekaServer` and set `eureka.client.register-with-eureka=false` & `eureka.client.fetch-registry=false` in `application.properties`
+  - Based on the `server.port` defined, the Eureka dashboard can be accessed via `http://localhost:<port>/`
+    ![Eureka Server Dashboard](/figure/ServiceDiscovery_Dashboard.png)
+- To define a Eureka Client, set `eureka.client.service-url.default-zone=http://localhost:8761/eureka` in `application.properties`
+  - Note that we do not need to annotate the main class with `@EnableEurekaClient` (Refer [here](https://cloud.spring.io/spring-cloud-netflix/multi/multi__service_discovery_eureka_clients.html))
+    >   Having `spring-cloud-starter-netflix-eureka-client` on the classpath makes the app into both a Eureka “instance” (that is, it registers itself) and a “client” (it can query the registry to locate other services)   
+  - Change the port of the client to 0 to allow Spring to assign a random port to the client
+  - Update the `localhost:8082` for the `WebClient` to `inventory-service` (i.e. service name defined in `application.properties`)
 
-### Load Balancer
+### Load Balancer (Client-Side)
 - Load Balancer is used to distribute the load between microservices
+- Problem It Addresses: Earlier in Service Discovery, we spun up multiple instances. Updating the `localhost:8082` for the `WebClient` to `inventory-service` raises the problem of which instance to call (when there are >1 instances registered)
+  ![Error Code for Order Service](/figure/LoadBalancer_DiscoveryError.png)
+- How It Works: `@LoadBalanced` from Spring Cloud Client will be applied to a **Client-Side** `RestTemplate` or `WebClient` bean to distribute the load between the instances
+
+### API Gateway
+- API Gateway is a single entry point for all the microservices
 
 ### Circuit Breaker
 - Circuit Breaker is used to handle the failure of a service
@@ -182,19 +205,10 @@
 ### Distributed Tracing
 - Distributed Tracing is used to track the request flow between microservices
 
-### Log Analysis
-- Log Analysis is used to analyze the logs of all the microservices
-
-### Security
-- Security is used to secure the microservices
-
 ### Fault Tolerance
 - Fault Tolerance is used to handle the failure of a service
 
-### Monitoring
-- Monitoring is used to monitor the health of all the microservices
-
-### Messaging
+### Messaging / Message Broker
 - Messaging is used to communicate between microservices
 
 ### Distributed Session
@@ -203,6 +217,9 @@
 ### Distributed Cache
 - Distributed Cache is used to manage the cache of all the microservices
 
+### Monitoring
+- Monitoring is used to monitor the health of all the microservices
 
+## Spring Boot Security
 
-
+## Spring Boot Logging

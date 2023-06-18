@@ -6,10 +6,12 @@
 3. Unit tests are not written to satisfy the code coverage tool (i.e. do not need to test `SpringApplication.run(ProductServiceApplication.class, args)`)
 4. Spring expects the data to be in JSON format, otherwise HTTP 400 Bad Request will be returned
 
-## Prior to Implementing Discovery Service
+## Prior to Implementing Service Discovery
 - Product service is defined at port 8080
 - Order service is defined at port 8081
 - Inventory service is defined at port 8082
+
+**After implementing service discovery (specifically `server.port=0`), the port number is now varied. Therefore, change the ports below accordingly.**
 
 ### Product Service
 1. POST localhost:8080/api/product
