@@ -195,6 +195,65 @@
 
 ### API Gateway
 - API Gateway is a single entry point for all the microservices
+- Problem It Addresses: Even though we have Service Discovery and Load Balancer (Client-Side), we still need to call the microservices directly. This requires us to know the URL (host & port) of the microservices prior to invocation.
+  ![Microservices Exposed Without API Gateway](/figure/APIGateway_ExposureProblem.png)
+- How It Works: API Gateway is a single point of contact for clients, also known as Edge Server. It is a single point of failure and is also known as a **Server-Side** Load Balancer.
+  ![How API Gateway Works](/figure/APIGateway_Overview.png)
+  - Essentially, API Gateway can perform:
+    1. Routing based on request headers (including path rewriting, predicates to match headers/parameters and filters to modify requests and responses)
+    2. Security (e.g. Authentication, Authorization, rate limiting)
+    3. Load balancing
+    4. SSL Termination (i.e. internal communication do not require HTTPS)
+- Some API Gateway Tools: Zuul, Spring Cloud Gateway
+- In this project, we will be using [Spring Cloud Gateway](https://spring.io/projects/spring-cloud-gateway)
+- Start by adding Eureka Client dependency to Spring Cloud Gateway (register as a Eureka Client to obtain the registry)
+- To define a Spring Cloud Gateway, set the routing rules in `application.properties`
+  - Example 1:
+    ```yaml
+    ## Product Service Route
+    spring.cloud.gateway.routes[0].id=product-service
+    spring.cloud.gateway.routes[0].uri=lb://product-service
+    spring.cloud.gateway.routes[0].predicates[0]=Path=/api/product
+    ```
+    - We define a predicate to match all `Path` types of the pattern `/api/product`
+    - Such requests will be routed to `lb://product-service` (instead of `http`, use `lb` for load-balancing)
+  - Example 2:
+    ```yaml
+    ## Discovery Server Route
+    spring.cloud.gateway.routes[2].id=discovery-server
+    spring.cloud.gateway.routes[2].uri=http://localhost:8761
+    spring.cloud.gateway.routes[2].predicates[0]=Path=/eureka/web
+    spring.cloud.gateway.routes[2].filters[0]=SetPath=/
+    
+    ## Discovery Server Static Resources Route
+    spring.cloud.gateway.routes[3].id=discovery-server-static
+    spring.cloud.gateway.routes[3].uri=http://localhost:8761
+    spring.cloud.gateway.routes[3].predicates[0]=Path=/eureka/**
+    ```
+      - Our goal is to access the Eureka Dashboard via the API Gateway (URL = `http://localhost:8080/eureka/web`)
+      - First, we define a predicate to match all `Path` types of the pattern `/eureka/web`
+      - Such requests will be routed to `lb://localhost:8761/eureka/web`
+      - Since `/eureka/web` endpoint does not exist at port 8761, we set the path to `/` (i.e. root)
+        - Define a `filter` to `SetPath` as `/` and route the requests to `http://localhost:8761/` instead
+      - However, this fails (HTTP Status Code 503 - Service Unavailable) with Java error message `o.s.c.l.core.RoundRobinLoadBalancer      : No servers available for service: localhost`
+        - We can see that the API Gateway is trying to load-balance the request to `localhost` which fails because there is no Eureka service registered with the name `localhost`
+        - Therefore, for such endpoints, we should use `http` instead of `lb` to fix as `http` protocol and avoid treating the URL as a service name erroneously
+      - Now we can load the dashboard via the API Gateway (URL = `http://localhost:8080/eureka/web`)
+        ![Plain Eureka Dashboard without CSS and JS](/figure/APIGateway_StaticResourcesError.png)
+      - However, we realise that only the HTML file was returned (missing CSS and JS files)
+        - Inspecting the network packets, we can see that the static resources are not loaded via the API Gateway
+        - Therefore, we need to define another route for the static resources
+          ![Static Resources Failed with 404](/figure/APIGateway_StaticResourcesPath.png)
+        - Based on the above image, we define a predicate to match all `Path` types of the pattern `/eureka/**` to capture all static resources
+        - Such requests will be routed to `http://localhost:8761/eureka/**`
+        - This works without `SetPath` filter because the static resources are located at the root of the Eureka Server
+          - Inspecting the HTML file, we notice that the HTML file calls the static resources at `/eureka/css/wro.css` and `/eureka/js/wro.js`
+          - Therefore, we should not change its path
+      - Now we can load the dashboard fully via the API Gateway (URL = `http://localhost:8080/eureka/web`)
+        ![Eureka Dashboard Loaded Properly with Static Resources](/figure/APIGateway_StaticResourcesSuccess.png)
+    - **Note: The order of the routes matters. The first route that matches the request will be used.**
+    - FYI: Here is the source code of the Eureka Dashboard, to understand the static resource pathing
+      ![Eureka Dashboard Source Code](/figure/APIGateway_EurekaDashboardSourceCode.png)
 
 ### Circuit Breaker
 - Circuit Breaker is used to handle the failure of a service

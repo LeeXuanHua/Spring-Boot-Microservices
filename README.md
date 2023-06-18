@@ -6,6 +6,8 @@ This project features the following:
 2. **Order Service** - Order products
 3. **Inventory Service** - Check if product is in stock or not
 4. **Notification Service** - Send notifications, after order is placed
+5. **API Gateway** - Single entry point for all services
+6. **Discovery Server** - Service discovery for multiple instances of each service
 
 System Architecture:
 ![Application System Architecture](/figure/System%20Architecture.png)
@@ -46,6 +48,12 @@ java -jar order-service/build/libs/order-service-0.0.1-SNAPSHOT.jar
 
 ./gradlew :inventory-service:bootRun
 java -jar inventory-service/build/libs/inventory-service-0.0.1-SNAPSHOT.jar
+
+./gradlew :api-gateway:bootRun
+java -jar api-gateway/build/libs/api-gateway-0.0.1-SNAPSHOT.jar
+
+./gradlew :discovery-server:bootRun
+java -jar discovery-server/build/libs/discovery-server-0.0.1-SNAPSHOT.jar
 ```
 
 #### For usage with IntelliJ IDEA
@@ -62,7 +70,8 @@ Refer to [Testing](./Testing.md).
 
 ## Changes from Video Tutorial
 1. Used Gradle instead of Maven
-2. Implemented testings & added Jacoco for test coverage
+2. Implemented testings & added Jacoco for test coverage (editing the tests cases alongside the code and using `lombok.config`)
+3. Handled MySQL login credentials as environment variables (instead of hardcoding in `application.properties`)
 
 
 ## Notes & Learnings
