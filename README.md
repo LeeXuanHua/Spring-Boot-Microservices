@@ -16,13 +16,45 @@ System Architecture:
 3. MongoDB
 
 ## How to Run
-Depending on use case, here are some commonly used commands:
+#### Clone this repository and build the project
 ```bash
-# Clone this repository and change directory
 git clone https://github.com/LeeXuanHua/Spring-Boot-Microservices.git
 cd spring-boot-microservices
-gradlew clean build bootRun
+./gradlew clean build
 ```
+
+#### Set up MySQL database
+1. Edit `importMySQLCredentials.sh.stub` to include your MySQL credentials
+2. Rename `importMySQLCredentials.sh.stub` to `importMySQLCredentials.sh`
+3. Ensure that MySQL is running with the following empty databases:
+   1. `order_service`
+   2. `inventory_service`
+
+**Note that MongoDB do not require any setup for the database.**
+
+#### To run all the microservices, run the following commands
+```bash
+# On all terminals from spring-boot-microservices/, run the following command:
+source ./importMySQLCredentials.sh
+
+# On separate terminals, for each of the following pair, run one of the commands:
+./gradlew :product-service:bootRun
+java -jar product-service/build/libs/product-service-0.0.1-SNAPSHOT.jar
+
+./gradlew :order-service:bootRun
+java -jar order-service/build/libs/order-service-0.0.1-SNAPSHOT.jar
+
+./gradlew :inventory-service:bootRun
+java -jar inventory-service/build/libs/inventory-service-0.0.1-SNAPSHOT.jar
+```
+
+#### For usage with IntelliJ IDEA
+Configure environment variables for the following run configurations:
+1. `product-service`
+2. `order-service`
+3. `inventory-service`
+![IntelliJ Run Configuration](/figure/IntelliJ_RunConfiguration.png)
+
 
 ## How to Test Manually via Postman
 Refer to [Testing](./Testing.md).

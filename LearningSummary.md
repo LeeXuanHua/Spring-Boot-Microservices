@@ -5,11 +5,10 @@
 2. [Understanding Java Spring Boot Layout and Annotations](#understanding-java-spring-boot-layout-and-annotations)
     - [Typical Structure of a Spring Boot Service](#typical-structure-of-a-spring-boot-service)
     - [Annotations](#annotations)
+    - [JPA](#jpa)
 3. [Spring Boot Testing](#spring-boot-testing)
-    - [Unit Testing](#unit-testing)
-    - [Integration Testing](#integration-testing)
-    - [Mocking](#mocking)
-    - [Test Coverage](#test-coverage)
+4. [Inter-Process Communication](#inter-process-communication)
+    - [Basics to Servlet (Spring MVC) vs Reactive (Spring WebFlux)](#basics-to-servlet--spring-mvc--vs-reactive--spring-webflux-)
 4. [Spring Boot Cloud](#spring-boot-cloud)
     - [API Gateway](#api-gateway)
     - [Service Discovery](#service-discovery)
@@ -97,6 +96,10 @@
 - `@Document` annotation is used to define as a MongoDB document
 - `@Id` annotation is used to specify as the unique identifier
 
+### JPA
+- JPA stands for Java Persistence API
+- Based on method name, Spring Data JPA can automatically generate the query. Refer [query-creation](https://docs.spring.io/spring-data/data-jpa/docs/current/reference/html/#jpa.query-methods.query-creation) and [repository-query-keywords](https://docs.spring.io/spring-data/jpa/docs/current/reference/html/#repository-query-keywords)to learn more about query creation syntax.
+- `readOnly` flag in `@Transactional` hints the underlying JDBC driver for performance optimizations, but does not enforce no-manipulation queries (dependent on database). Refer [](https://docs.spring.io/spring-data/jpa/docs/current/reference/html/#transactional-query-methods)
 
 ## Spring Boot Testing
 
@@ -112,6 +115,8 @@
 - Used to achieve isolation in unit testing, by mocking external dependencies (e.g. database, external API calls)
 - Can be used in integration testing, depending on the scope and purpose of the test (e.g. testing web controller, data persistence layer, or the entire application)
 - Benefits include faster startup time and less resource consumption during testing
+- Understand the difference between `@Mock` and `@MockBean` [here](https://www.baeldung.com/java-spring-mockito-mock-mockbean), and a use-case is to [mock some beans in MockMvc](https://stackoverflow.com/questions/58547348/how-to-mock-some-beans-but-not-others-in-mockmvc) as seen [here](order-service/src/test/java/com/microservices/orderservice/OrderControllerIntegrationTest.java)
+- Use `@MockitoSettings(strictness = Strictness.LENIENT)` to suppress errors for unused stubs (refer to [`OrderServiceUnitTest.java`](order-service/src/test/java/com/microservices/orderservice/OrderServiceUnitTest.java) for example)
 
 ### Test Coverage
 - Use Jacoco to manage test coverage (Refer to `build.gradle` for configurations to generate test coverage report)
@@ -119,6 +124,42 @@
 - Although test coverage is not a good metric to measure the quality of tests, it is still a good indicator to see if there are any missing tests
 - Cyclomatic complexity measures function complexity (incl. conditions and iterations), indicating if function ought to be decomposed further to better adhere to Single Responsibility Principle
 - Ideally, the threshold for test coverage is around 80% and cyclomatic complexity <= 10
+
+
+## Inter-Process Communication
+**Goal**: To enable communication between microservices
+
+**Types**:
+1. Synchronous or Asynchronous
+    - REST API
+    - GraphQL
+    - gRPC
+2. Message Broker
+    - RabbitMQ
+    - Kafka
+
+**Our Choice**: REST API - via Spring Boot `WebClient`
+    - `WebClient` is a non-blocking, reactive HTTP client that supports sync, async and streaming scenarios
+    - `RestTemplate` is a synchronous client that is less desirable as an alternative & deprecated in Spring 5.0
+
+**Using Inter-Process Communication in the Project**:
+- Source: OrderService; Sink: InventoryService
+- To place an order, OrderService sends a request to InventoryService to check if the order can be fulfilled (i.e. sufficient stock)
+- Calls will be made via [`WebClient`](order-service/src/main/java/com/microservices/orderservice/service/OrderService.java) defined in [`config/`](order-service/src/main/java/com/microservices/orderservice/config/)
+- Remember to call `.block()` since `WebClient` is asynchronous
+
+#### Basics to Servlet (Spring MVC) vs Reactive (Spring WebFlux)
+- Major shift towards asynchronous, non-blocking concurrency in Java, JVM, etc.
+- Spring Framework 5 introduces a fully non-blocking, reactive stack for web applications.
+- The reactive stack handles higher concurrency with less hardware resources, and excels at streaming scenarios, both client and server side.
+- Motivation:
+  - Traditionally, Java used thread pools for the concurrent execution of blocking, I/O bound operations (e.g. making remote calls)
+  - However, this approach can be complex:
+      1. Hard to make applications work correctly when wrestling with synchronization and shared structures
+      2. Hard to scale efficiently when every blocking operation requires an extra thread to sit around and wait. Thus, at the mercy of latency outside control (e.g. slow remote clients and services)
+  - On the other hand, if an application is fully non-blocking, it can scale with a small, fixed number of threads
+  - In short, we should avoid relying on extra threads for higher concurrency
+  - To cater to asynchronous, we forfeit sequential logic associated with imperative programming, and learn to react to events they generate
 
 
 ## Spring Boot Cloud

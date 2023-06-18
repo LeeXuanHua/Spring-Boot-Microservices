@@ -24,23 +24,51 @@
 
 
 ### Order Service
-1. POST localhost:8081/api/order
-    ```json
-    {
-        "orderLineItemsDtoList":[
+1. POST localhost:8081/api/order 
+   HTTP Status 200 - Order placed successfully
+   ```json
+      {
+         "orderLineItemsDtoList":[
             {
-                "skuCode": "Samsung",
-                "price": 800,
-                "quantity": 1
+               "skuCode": "iphone_13",
+               "price": 800,
+               "quantity": 2
             },
             {
-                "skuCode": "Amazon Prime",
-                "price": 10,
-                "quantity": 4
+               "skuCode": "iphone_13_pro",
+               "price": 1000,
+               "quantity": 1
             }
-        ]
-    }
-    ```
+         ]
+      }
+   ```
+   HTTP Status 500 - Internal Server Error
+   ```json
+      {
+         "orderLineItemsDtoList":[
+            {
+               "skuCode": "Samsung",
+               "price": 800,
+               "quantity": 1
+            },
+            {
+               "skuCode": "Amazon Prime",
+               "price": 10,
+               "quantity": 4
+            }
+         ]
+      }
+   ```
 
 ### Inventory Service
-1. GET localhost:8082/api/inventory/iphone_13
+~~1. GET localhost:8082/api/inventory/iphone_13~~ (Deprecated after implementing inter-process communication
+1. GET localhost:8082/api/inventory?skucode=iphone_13&skuCode=iphone_13_pro&skuCode=samsung
+   ```json
+   [
+       {
+           "skuCode": "iphone_13_pro",
+           "inStock": true
+       }
+   ]
+   ```
+   - Should return only 1 output, since `skucode` is not defined as params and `samsung` is not defined in database (Refer to `CommandLineRunner` in [InventoryServiceApplication.java](inventory-service/src/main/java/com/microservices/inventoryservice/InventoryServiceApplication.java))
