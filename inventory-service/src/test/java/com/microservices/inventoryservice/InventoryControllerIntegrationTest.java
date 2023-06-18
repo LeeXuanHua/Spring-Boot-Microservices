@@ -21,6 +21,9 @@ import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.util.HashMap;
+import java.util.List;
+
 import static org.mockito.Mockito.mock;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -40,7 +43,7 @@ public class InventoryControllerIntegrationTest {
     private ObjectMapper objectMapper;
     @Autowired
     private InventoryRepository inventoryRepository;
-    private String skuCode = "iphone_13";
+    private final String skuCode = "iphone_13";
 
     static {	// Static block is used to start the container
         sqlContainer.start();
@@ -57,7 +60,7 @@ public class InventoryControllerIntegrationTest {
     public void setup() {
         // Start each test with an empty database
         inventoryRepository.deleteAll();
-        
+
         // Populate the database with some data
         Inventory inventory = new Inventory();
         inventory.setSkuCode(skuCode);
@@ -66,14 +69,43 @@ public class InventoryControllerIntegrationTest {
     }
 
     @Test
-    @DisplayName("Checks if inventory is in stock")
+    @DisplayName("Returns only those inventory in stock")
     public void isInStockTest() throws Exception {
-        String skuCodeString = objectMapper.writeValueAsString(skuCode);	// Convert the object to JSON string
-        String returnValue = mockMvc.perform(MockMvcRequestBuilders.get("/api/inventory/{sku-code}", skuCode)
-                        .contentType(MediaType.APPLICATION_JSON))
+        String returnValue = mockMvc.perform(
+                MockMvcRequestBuilders.get("/api/inventory")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .queryParam("skuCode", skuCode, "iphone_13_pro"))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
 
-        Assertions.assertTrue(Boolean.parseBoolean(returnValue));
+        Assertions.assertEquals("[{\"skuCode\":\"iphone_13\",\"inStock\":true}]", returnValue);
+    }
+
+    @Test
+    @DisplayName("Product quantity is decremented successfully")
+    public void decrementQuantityTest() throws Exception {
+        mockMvc.perform(
+                MockMvcRequestBuilders.post("/api/inventory/decrement")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(List.of(new HashMap<>() {{
+                            put("skuCode", skuCode);
+                            put("quantity", 10);
+                        }}))))
+                .andExpect(status().isAccepted());
+
+        Assertions.assertEquals(40, inventoryRepository.findBySkuCode(skuCode).getQuantity());
+    }
+
+    @Test
+    @DisplayName("Validation of List<InventoryRequest> fails")
+    public void decrementQuantityInvalidTest() throws Exception {
+        String decrementQuantityString = objectMapper.writeValueAsString(null);	// Convert the object to JSON string
+        mockMvc.perform(
+                MockMvcRequestBuilders.post("/api/inventory/decrement")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(decrementQuantityString))
+                .andExpect(status().isBadRequest());
+
+        Assertions.assertEquals(50, inventoryRepository.findBySkuCode(skuCode).getQuantity());
     }
 }
