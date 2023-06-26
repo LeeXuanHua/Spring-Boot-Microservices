@@ -16,6 +16,7 @@ System Architecture:
 1. Java SDK 11
 2. MySQL
 3. MongoDB
+4. Docker
 
 ## How to Run
 #### Clone this repository and build the project
@@ -33,6 +34,14 @@ cd spring-boot-microservices
    2. `inventory_service`
 
 **Note that MongoDB do not require any setup for the database.**
+
+#### Set up OIDC Spring Security via Keycloak
+Refer to [Keycloak Docker Setup](https://www.keycloak.org/getting-started/getting-started-docker).
+
+For our case, our initial Keycloak setup is as follows:
+```bash
+docker run -p 8181:8080 -e KEYCLOAK_ADMIN=admin -e KEYCLOAK_ADMIN_PASSWORD=admin quay.io/keycloak/keycloak:21.1.1 start-dev
+```
 
 #### To run all the microservices, run the following commands
 ```bash
@@ -58,9 +67,8 @@ java -jar discovery-server/build/libs/discovery-server-0.0.1-SNAPSHOT.jar
 
 #### For usage with IntelliJ IDEA
 Configure environment variables for the following run configurations:
-1. `product-service`
-2. `order-service`
-3. `inventory-service`
+1. `order-service`
+2. `inventory-service`
 ![IntelliJ Run Configuration](/figure/IntelliJ_RunConfiguration.png)
 
 
@@ -72,6 +80,7 @@ Refer to [Testing](./Testing.md).
 1. Used Gradle instead of Maven
 2. Implemented testings & added Jacoco for test coverage (editing the tests cases alongside the code and using `lombok.config`)
 3. Handled MySQL login credentials as environment variables (instead of hardcoding in `application.properties`)
+4. Fixed versioning issues (Spring Boot, Spring Security, Eureka Server, OIDC Authentication, etc)
 
 
 ## Notes & Learnings

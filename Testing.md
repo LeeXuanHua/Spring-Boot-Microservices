@@ -74,3 +74,17 @@
    ]
    ```
    - Should return only 1 output, since `skucode` is not defined as params and `samsung` is not defined in database (Refer to `CommandLineRunner` in [InventoryServiceApplication.java](inventory-service/src/main/java/com/microservices/inventoryservice/InventoryServiceApplication.java))
+
+
+## After Implementing Service Discovery, API Gateway, and OIDC Spring Security
+
+### Obtaining Access Token via Postman
+1. From Postman, go to `Authorization` tab and set the data according to the screenshot below:
+    ![Sample of Obtaining Access Token via Postman](/figure/Security_PostmanSample.png)
+   **Note**: `client_id` and `client_secret` are obtained from Keycloak, and Access Token URL resembles `http://localhost:8181/realms/spring-boot-microservices-realm/protocol/openid-connect/token`
+
+
+### Making Queries to API Gateway
+1. Set Authorization to OAuth 2.0 Bearer Token, using the access token obtained above
+2. Similar to the above, but replace `localhost:<port>` with `localhost:8080` (where port 8080 is the port number of API Gateway)
+3. Inventory Service is not exposed to API Gateway (undefined in api-gateway `application.properties` file). Instead, it is queried internally by Order Service. Therefore, the queries to Inventory Service will return `404 Not Found`.

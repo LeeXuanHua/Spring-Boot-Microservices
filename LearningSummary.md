@@ -9,7 +9,7 @@
 3. [Spring Boot Testing](#spring-boot-testing)
 4. [Inter-Process Communication](#inter-process-communication)
     - [Basics to Servlet (Spring MVC) vs Reactive (Spring WebFlux)](#basics-to-servlet--spring-mvc--vs-reactive--spring-webflux-)
-4. [Spring Boot Cloud](#spring-boot-cloud)
+5. [Spring Boot Cloud](#spring-boot-cloud)
     - [Service Discovery](#service-discovery)
     - [Load Balancer (Client-Side)](#load-balancer--client-side-)
     - [API Gateway](#api-gateway)
@@ -21,8 +21,13 @@
     - [Distributed Session](#distributed-session)
     - [Distributed Cache](#distributed-cache)
     - [Monitoring](#distributed-tracing)
-4. [Spring Boot Security](#spring-boot-security)
-5. [Spring Boot Logging](#spring-boot-logging)
+6. [Spring Boot Security](#spring-boot-security)
+   - [OAuth 2.0](#oauth-20)
+   - [OAuth 2.0 with Spring Security Resource Server](#oauth-20-with-spring-security-resource-server)
+   - [Keycloak Configuration](#keycloak-configuration)
+   - [Analysing Our Java Spring Boot Code](#analysing-our-java-spring-boot-code)
+   - [Other Spring Security Features Pending Implementation](#other-spring-security-features-pending-implementation)
+7. [Spring Boot Logging](#spring-boot-logging)
 
 ## Gradle
 1. Clean, rebuild and run project
@@ -153,7 +158,7 @@
 #### Basics to Servlet (Spring MVC) vs Reactive (Spring WebFlux)
 - Major shift towards asynchronous, non-blocking concurrency in Java, JVM, etc.
 - Spring Framework 5 introduces a fully non-blocking, reactive stack for web applications.
-- The reactive stack handles higher concurrency with less hardware resources, and excels at streaming scenarios, both client and server side.
+- The reactive stack handles higher concurrency with less hardware resources, and excels at streaming & real-time data processing scenarios, both client and server side.
 - Motivation:
   - Traditionally, Java used thread pools for the concurrent execution of blocking, I/O bound operations (e.g. making remote calls)
   - However, this approach can be complex:
@@ -280,5 +285,219 @@
 - Monitoring is used to monitor the health of all the microservices
 
 ## Spring Boot Security
+
+References:
+- [Spring Security - Servlet Oauth2 Login](https://docs.spring.io/spring-security/reference/servlet/oauth2/login/index.html)
+- [OAuth 2.0 Authorization Framework by Internet Engineering Task Force (IETF)](https://datatracker.ietf.org/doc/html/rfc6749)
+- [OAuth 2.0 JSON Web Token (JWT) Profile by Internet Engineering Task Force (IETF)](https://datatracker.ietf.org/doc/html/rfc7523)
+- [Spring Security - Password Encryption](https://docs.spring.io/spring-security/reference/features/authentication/password-storage.html)
+
+### OAuth 2.0
+- OAuth 2.0 is an open standard for access delegation, commonly used as a way for Internet users to grant websites or applications access to their information on **other websites** but **without giving them the passwords**
+> The OAuth 2.0 authorization framework enables a third-party application to obtain limited access to an HTTP service, either on
+behalf of a resource owner by orchestrating an approval interaction between the resource owner and the HTTP service, or by allowing the
+third-party application to obtain access on its own behalf.  This specification replaces and obsoletes the OAuth 1.0 protocol described in RFC 5849.
+
+![Generic OAuth 2.0 Protocol Flow](/figure/Security_OAuth2.0ProtocolFlow.png)
+- Roles:
+  1. **Resource owner** - Grants access to a protected resource. If resource owner is a person, it is referred to as an end-user.
+  2. **Resource server** - Server hosting the protected resources, capable of accepting and responding to protected resource requests using access tokens.
+  3. **Client** - Application making protected resource requests on behalf of the resource owner and with its authorization. "client" does not imply implementation (e.g. server, desktop, or other devices).
+  4. **Authorization server** - Server issuing access tokens to the client after successfully authenticating the resource owner and obtaining authorization.
+- Authorization server may be the same server as the resource server or a separate entity
+- Authorization grant is a credential representing the resource owner's authorization (to access its protected resources) and used by the client to obtain an access token
+  - Consists of 4 types:
+    1. **Authorization code**
+       - Between client and resource owner (authorization server is intermediary)
+       - Instead of requesting authorization directly from the resource owner, the client directs the resource owner to an authorization server (via its user-agent), which in turn directs the resource owner back to the client with the authorization code
+       - This is the most commonly used authorization grant type, where resource owner is directed to authorization server login page, before being redirected back to the client with the authorization code
+       - Security benefits include the ability to authenticate the client, as well as the transmission of the access token directly to the client **without passing it through the resource owner's user-agent** and potentially exposing it to others, including the resource owner
+    2. **Implicit**
+        - Simplified authorization code flow optimized for clients implemented in a browser using a scripting language such as JavaScript
+        - Client is **issued an access token directly** (instead of an authorization code), therefore access token may be exposed to the resource owner or other applications with access to the resource owner's user-agent
+        - Grant type is implicit, as no intermediate credentials (such as an authorization code) are issued (and later used to obtain an access token)
+        - Implicit grants improve the responsiveness and efficiency of some clients (e.g. in-browser application), since it reduces the number of round trips required to obtain an access token
+        - However, this is a huge security risk and is not recommended at all
+    3. **Resource owner password credentials**
+        - Resource owner password credentials (i.e. username and password) can be used directly as an authorization grant to obtain an access token
+        - This should only be used when there is a **high degree of trust between the resource owner and the client** (e.g. client is part of the device operating system or a highly privileged application), and when other authorization grant types are not available (such as an authorization code)
+        - Although this requires resource owner credentials, they are used for a single request and are exchanged for an access token. This eliminates the need for the client to store the resource owner credentials for future use, by exchanging the credentials with a long-lived access token or refresh token
+    4. **Client credentials**
+        - **MUST only be used by confidential clients (a.k.a. clients fully under control of organisation)**
+        - Used when the authorization scope is limited to the protected resources **under the control of the client**, or to protected **resources previously arranged with the authorization server**
+        - Used typically when the client is acting on its own behalf (the client is also the resource owner) or is requesting access to protected resources based on an authorization previously arranged with the authorization server
+
+**OAuth 2.0 Flow for Authorization Code**
+![OAuth 2.0 Flow for Authorization Code](/figure/Security_OAuth2.0AuthorizationCodeFlow.png)
+1. Client initiates flow by directing the resource owner's user-agent to the authorization endpoint. The client includes its **client identifier**, **requested scope**, local state, and a **redirection URI** to which the authorization server will send the user-agent back once access is granted (or denied)
+2. Authorization server authenticates the resource owner (via the user-agent) and establishes whether the resource owner grants or denies the client's access request
+3. Assuming the resource owner grants access, the authorization server redirects the user-agent back to the client using the redirection URI provided earlier (in the request and during client registration). The redirection URI includes an **authorization code** and any local state provided by the client earlier
+4. Client requests an access token from the authorization server's token endpoint by including the **authorization code** received in the previous step. When making the request, the client authenticates with the authorization server. The client includes the **redirection URI** used to obtain the authorization code for verification
+5. Authorization server authenticates the client, validates the authorization code, and ensures that the **redirection URI received matches the URI used to redirect the client** in step (C). If valid, the authorization server responds back with an **access token** and, optionally, a **refresh token**
+
+**OAuth 2.0 Flow for Implicit Grant**
+![OAuth 2.0 Flow for Implicit Grant](/figure/Security_OAuth2.0ImplicitFlow.png)
+1. Client initiates flow by directing the resource owner's user-agent to the authorization endpoint. The client includes its **client identifier**, **requested scope**, local state, and a **redirection URI** to which the authorization server will send the user-agent back once access is granted (or denied)
+2. Authorization server authenticates the resource owner (via the user-agent) and establishes whether the resource owner grants or denies the client's access request
+3. Assuming the resource owner grants access, the authorization server redirects the user-agent back to the client using the redirection URI provided earlier. The redirection URI includes the **access token** in the **URI fragment**
+4. User-agent follows the redirection instructions by making a request to the web-hosted client resource (which does not include the fragment). The **user-agent retains the fragment information locally**
+5. Web-hosted client resource returns a web page (typically an HTML document with an embedded script) capable of accessing the **full redirection URI** including the fragment retained by the user-agent, and **extracting the access token** (and other parameters) contained in the fragment
+6. User-agent executes the script provided by the web-hosted client resource locally, which extracts the access token
+7. User-agent passes the access token to the client
+
+**OAuth 2.0 Flow for Resource Owner Password Credentials**
+![OAuth 2.0 Flow for Resource Owner Password Credentials](/figure/Security_OAuth2.0ResourceOwnerPasswordCredentialsFlow.png)
+1. Resource owner provides the client with its **username** and **password** 
+2. Client requests an access token from the authorization server's token endpoint by including the credentials received from the resource owner. When making the request, the client authenticates with the authorization server
+3. Authorization server authenticates the client and validates the resource owner credentials, and if valid, issues an **access token**
+
+**OAuth 2.0 Flow for Client Credentials**
+![OAuth 2.0 Flow for Client Credentials](/figure/Security_OAuth2.0ClientCredentialsFlow.png)
+1. Client authenticates with the authorization server and requests an **access token** from the token endpoint
+2. Authorization server authenticates the client, and if valid, issues an access token
+
+- Usage of JSON Web Token (JWT) Profile
+  - JWT is a security token issued by an Identity Provider and consumed by a Relying Party to identify the token's subject for security-related purposes
+  - Authorization grant can manifest itself in many forms (e.g. assertions via JWT or SAML)
+  - JWT Profile for OAuth 2.0 Authorization Grants defines a method for encoding authorization grants in a JWT and defines how to request and process them
+  - To use Bearer JWTs as **Authorization Grants**:
+    - `grant_type` = `urn:ietf:params:oauth:grant-type:jwt-bearer`
+    - `assertion` = `<A Single JWT>`
+    - `client_id` is optional
+  - To use Bearer JWTs for **Client Authentication**:
+    - `client_assertion_type` = `urn:ietf:params:oauth:client-assertion-type:jwt-bearer`
+    - `client_assertion` = `<A Single JWT>`
+  - Authorization server will check that the JWTs must contain:
+    1. `iss` (issuer) claim - entity that issued the JWT
+    2. `sub` (subject) claim - principal of the JWT (if authorization grant, typically is the resource owner or a pseudonymous identifier; if client authentication, MUST be the `client_id` of the OAuth client)
+    3. `aud` (audience) claim - identifies the authorization server as an intended audience
+    4. `exp` (expiration time) claim - limits the time window during which the JWT can be used
+    5. [Optional] `nbf` (not before) claim - identifies the time before which the token MUST NOT be accepted for processing
+    6. [Optional] `iat` (issued at) claim - identifies the time at which the JWT was issued (authorization server may reject JWTs with an "iat" claim value that is unreasonably far in the past)
+    7. [Optional] `jti` (JWT ID) claim - provides a unique identifier for the JWT (for authorization server to ensure that JWTs are not replayed by maintaining the set of used `jti` values for the length of time for which the JWT would be considered valid based on the applicable `exp` instant)
+    8. JWT MUST be digitally signed or have a Message Authentication Code (MAC) applied by the issuer
+  - Essentially, the JWT is a digitally signed assertion that the client can present to the authorization server to prove its identity
+
+
+### OAuth 2.0 with Spring Security Resource Server
+- Reference Articles & Documentations:
+  - [JWT Authentication With Spring Boot’s Inbuilt OAuth2 Resource Server (Oct 26, 2020)](https://medium.com/swlh/stateless-jwt-authentication-with-spring-boot-a-better-approach-1f5dbae6c30f)
+  - [JWT Authentication with OAuth2 Resource Server and an external Authorization Server (Jul 15, 2022)](https://medium.com/geekculture/jwt-authentication-with-oauth2-resource-server-and-an-external-authorization-server-2b8fd1524fc8)
+  - [Overview of Spring Security with OAuth 2.0 JWT](https://www.baeldung.com/spring-security-oauth-jwt)
+  - [Spring Security OAuth 2.0 Documentation for **Servlet**](https://docs.spring.io/spring-security/reference/servlet/oauth2/resource-server/jwt.html)
+  - [Spring Security OAuth 2.0 Documentation for **Reactive**](https://docs.spring.io/spring-security/reference/reactive/oauth2/resource-server/jwt.html)
+- Article 1 Summary:
+  - JWT authentication for SPA web application's backend REST APIs using Spring Boot’s inbuilt OAuth2 Resource Server
+    - **More Secure** — Use an RSA private key instead of a single secret token (symmetric key) to sign JWTs and RSA public key for signature verification
+    - **Convenient** — An endpoint (`/login`) to obtain a signed JWT in exchange for valid user credentials
+    - **Authorization** — Spring Security’s method security can be used since the JWT information is available as Authentication at controller level; Can use `@PreAuthorize`, `@PostAuthorize` annotations with SPEL for complex authorization needs
+    - **Extendable** — Can be extended to support federated authentication (ex: “Login with Google”, etc.) and to support refresh_tokens and client side JWT validation using `/jwt` endpoint
+    - **Best Practices** — Use Spring Boot’s inbuilt OAuth2 Resource Server for inbound request authentication with JWT
+    - **Scalable** — This approach is stateless and JWT authentication can be scaled horizontally as desired
+  - Session-based Authentication vs Stateless Authentication:
+    - Session-based Authentication requires the backend to maintain each user’s session data (aka. state)
+      1. Sharing session data across backend servers (without sticky sessions)
+      2. Session aware load balancing (sticky sessions) when scaling horizontally
+    - Stateless Authentication can be achieved by either:
+      1. Opaque Tokens - access token not containing any user data, usually issued by a third party who is contacted each time to validate the access token
+      2. JSON Web Tokens (JWTs) - a JSON token with 3 sections (header, claims,and signature) containing personal/application data. The signature can be validated by the receiving party itself without contacting the third party that issued it.
+- Article 2 Summary:
+  - OIDC returns 2 tokens:
+    1. `id_token` - used by SPA to know if user is authenticated, containing user information like username, email and display name depending on the scopes requested
+    2. `access_token` - used to authenticate API calls made to backend APIs, requiring authorization_code flow instead. For SPAs and mobile apps, use Authorization Code with PKCE (PKCE = proof key for code exchange) for security
+  - How it Works:
+    - Once frontend has obtained the access_token, pass that JWT as the Bearer token in the Authorization header when invoking the backend API
+    - Backend then validates the signature and the content of the JWT to authenticate the API call against the user
+      **Note: Can extend authorization code flow and perform a token exchange in one of the services to exchange the JWT token issued by the authorization server into an application specific JWT. With that approach, we can add more claims to the JWT like user’s roles and tenant/organization information.**
+- Article 3 Summary:
+  - JWTs contain all the necessary information, so the Resource Server must verify Token signature to ensure data integrity
+  - To do so, `jwk-set-uri` contains the public key from the authorization server to decode the JWT
+    - If `jwk-set-uri` is not set, Resource Server will use `issuer-uri` to determine the endpoint of the public key from the Authorization Server metadata endpoint
+    - Adding `issuer-uri` mandates that the **Authorization Server** must run before starting the **Resource Server** application (therefore, the `issuer-uri` server must be up and running before the resource server can start)
+
+
+### Keycloak Configuration
+**Background**
+- A realm in Keycloak is equivalent to a tenant. Each realm allows an administrator to create isolated groups of applications and users
+- Initially, Keycloak includes a single realm, called master. Use this realm only for managing Keycloak and not for managing any applications
+- 
+
+1. Login to Keycloak admin console at `http://localhost:8181/admin`
+2. Create a realm `spring-boot-microservices-realm` and enable client credential grant by disabling `Standard Flow Enabled` and `Direct Access Grants Enabled`, while enabling `Service Accounts Enabled`
+3. View the OpenID Configurations at http://localhost:8181/realms/spring-boot-microservices-realm/.well-known/openid-configuration
+
+
+### Analysing Our Java Spring Boot Code
+1. Define Spring Security rules under `config/SecurityConfig.java` in API Gateway
+   ```java
+    @Configuration
+    @EnableWebFluxSecurity
+    public class SecurityConfig {
+        @Bean
+        public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity serverHttpSecurity) {
+            serverHttpSecurity.cors(Customizer.withDefaults())
+                .csrf(ServerHttpSecurity.CsrfSpec::disable)                 // disable CSRF for Postman testing
+                .authorizeExchange(exchange -> exchange
+                    .pathMatchers("/eureka/**").permitAll()                 // permit all requests to /eureka/**
+                    .anyExchange().authenticated()                          // authenticate all other requests
+                )
+                /*
+                Either of the following works too:
+                .oauth2ResourceServer(ServerHttpSecurity.OAuth2ResourceServerSpec::jwt);  // use JWT for OAuth2 resource server
+                .oauth2ResourceServer(oauth2 -> oauth2
+                .jwt(withDefaults()));
+                */
+                .oauth2ResourceServer(oauth2 -> oauth2
+                    .jwt(jwt -> jwt.jwtDecoder(jwtDecoder())));
+    
+            return serverHttpSecurity.build();
+        }
+    }
+   ```
+   - A ServerHttpSecurity is similar to Spring Security's HttpSecurity but for WebFlux. It allows configuring web based security for specific http requests
+   - `.cors()`, `.csrf()`, `.oauth2ResourceServer()`, `.authorizeExchange()` are marked for deprecation. Instead, we should use `.cors(<org.springframework.security.config.Customizer>)`, `.csrf(<org.springframework.security.config.Customizer>)`, `.oauth2ResourceServer(<org.springframework.security.config.Customizer>)`, `.authorizeExchange(<org.springframework.security.config.Customizer>)`
+   - In the above, all requests to `/eureka/**` (discovery server dashboard) are permitted, while all other requests must be authenticated using JWT (i.e. the OIDC Access Token)
+2. Define custom JWT decoder rules under `config/SecurityConfig.java` in API Gateway
+   ```java
+    @Configuration
+    @EnableWebFluxSecurity
+    public class SecurityConfig {
+        @Bean
+        public NimbusReactiveJwtDecoder jwtDecoder() {
+            NimbusReactiveJwtDecoder jwtDecoder = (NimbusReactiveJwtDecoder) ReactiveJwtDecoders.fromIssuerLocation(issuerUri);
+            OAuth2TokenValidator<Jwt> oAuth2TokenValidator = new DelegatingOAuth2TokenValidator<>(
+                    new JwtTimestampValidator(),
+                    new JwtIssuerValidator(issuerUri),
+                    new JwtClaimValidator<List<String>>("aud",
+                          aud -> aud.stream().allMatch(s -> s.equals(resourceServerAudience))),
+                    new JwtClaimValidator<String>("typ",
+                          typ -> typ.equals(jwtType)),
+                 new JwtClaimValidator<String>("preferred_username",
+                          preferred_username -> !preferred_username.isEmpty())
+            );
+            jwtDecoder.setJwtValidator(oAuth2TokenValidator);
+
+            return jwtDecoder;
+        }
+    }
+   ```
+   - Remember to use `ReactiveJwtDecoders` instead of `JwtDecoders` since we are using WebFlux (not Spring MVC)
+     - Otherwise, `JwtDecoder` may be set already or the validations will not apply properly
+   - Do not use `NimbusReactiveJwtDecoder` directly
+     - Instead use `ReactiveJwtDecoders.fromIssuerLocation(issuerUri)` to create a `NimbusReactiveJwtDecoder` instance
+     - Otherwise, the `NimbusReactiveJwtDecoder` instance will not have the `setJwtValidator()` method
+   - The above validates the following claims:
+     - `exp` (expiration time) - the time on or after which the token MUST NOT be accepted for processing
+     - `iss` (issuer) - the issuer of the token
+     - `aud` (audience) - the audience the token is intended for
+     - `typ` (token type) - the type of the token
+     - `preferred_username` - the username of the user (not empty)
+
+
+### Other Spring Security Features Pending Implementation
+1. [Authentication](https://docs.spring.io/spring-security/reference/features/authentication/index.html)
+2. [Protection Against Exploits](https://docs.spring.io/spring-security/reference/features/exploits/index.html)
+3. [Other Integrations](https://docs.spring.io/spring-security/reference/features/integrations/index.html)
+
 
 ## Spring Boot Logging
