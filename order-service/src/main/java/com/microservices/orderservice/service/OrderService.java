@@ -29,7 +29,7 @@ public class OrderService {
     /**
      * Places an order via OrderRequest, which may consist of 1 or more Order. UUIDs are created for each Order
      */
-    public void placeOrder(OrderRequest orderRequest) {
+    public String placeOrder(OrderRequest orderRequest) {
         // Generate new Order, set orderNumber, map each OrderLineItemsDto to OrderLineItems, and extract skuCodes
         Order order = new Order();
         order.setOrderNumber(UUID.randomUUID().toString());
@@ -76,6 +76,8 @@ public class OrderService {
                     .retrieve()
                     .bodyToMono(Void.class)
                     .block();
+
+            return "Order placed successfully!";
         } else {
             throw new IllegalArgumentException("Product is not in stock, please try again later");
         }
