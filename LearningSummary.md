@@ -261,7 +261,50 @@
       ![Eureka Dashboard Source Code](/figure/APIGateway_EurekaDashboardSourceCode.png)
 
 ### Circuit Breaker
-- Circuit Breaker is used to handle the failure of a service
+- Circuit Breaker is used to handle the failure of a service (**fault tolerance** library)
+- Problem It Addresses: There are inherent problems with the `WebClient` synchronous communications between `inventory-service` and `order-service`, such as Unavailable Service (when `inventory-service` is down) or slow response (when `inventory-service` is slow)
+- How It Works: Circuit breaker maintains a set of states for the services
+  ![Circuit Breaker State Diagram](/figure/CircuitBreaker_StateDiagram.png)
+  - **Closed State**: The service is available and the requests are sent to the service
+  - **Open State**: The service is unavailable and the requests are not sent to the service
+  - **Half-Open State**: The service is available and the requests are sent to the service to check if the service is available
+- Some Circuit Breaker Libraries: Hystrix, Resilience4j
+- In this project, we will be using [Resilience4j](https://resilience4j.readme.io/docs/getting-started-3)
+- Start by adding Resilience4j and Spring Cloud Actuator (to view health metrics) dependency to `order-service`
+- Add `management.health.circuitbreaker.enabled=true` (enable Actuator), `management.endpoints.web.exposure.include=*` (expose all endpoints, not just the health endpoint), and `management.endpoint.heatlh.show-details=always` (show complete health details) to `application.properties`
+  - To view the actuator endpoints, go to `http://localhost:<port>/actuator/health`
+  ![Sample of Order Service's Actuator Health Endpoint](/figure/CircuitBreaker_OrderServiceHealthActuator.png)
+  **Note: The service state is closed**
+- For Resilience4j:
+  - Set the properties based on the [documentation](https://resilience4j.readme.io/docs/circuitbreaker)
+  - Annotate the methods to implement circuit breaker (e.g. `@CircuitBreaker(name = "inventory", fallbackMethod = "fallbackMethod")` follows the same name as `resilience4j.circuitbreaker.instances.inventory.` and uses a fallback method named `fallbackMethod` when the circuit is open)
+    **Note: The fallback method must have the same signature as the original method**
+- Manually testing the Circuit Breaker:
+  1. Stop the `inventory-service`
+  2. Send a (failed) request to `order-service` (e.g. `http://localhost:8080/api/order/`)
+     ![Initial State of Order Service](/figure/CircuitBreaker_OrderServiceFailure.png)
+  3. Repeat step 2 for 4 more times (total 5 times to trigger `resilience4j.circuitbreaker.instances.inventory.slidingWindowSize=5`) to change state from `closed` to `open`
+     ![Open State of Order Service](/figure/CircuitBreaker_OrderServiceOpenState.png)
+  4. After waiting for about 5 seconds (due to `resilience4j.circuitbreaker.instances.inventory.waitDurationInOpenState=5s`), state changes from `open` to `half_open`
+     ![Half-Open State of Order Service](/figure/CircuitBreaker_OrderServiceHalfOpen.png)
+  5. Sending 3 successful requests to `order-service` changes the state from `half-open` to `closed`
+- Understanding `failureRate` and `bufferedCalls` interaction:
+  ![How failureRate Interacts with bufferedCalls](/figure/CircuitBreaker_OrderServiceExploringFailureRate.png)
+- However, the above only address failed API calls / response. What about slow API calls / response?
+- Therefore, we include Time Limiting features of Resilience4j by adding `resilience4j.timelimiter.instances.inventory.timeout-duration=3s` to `application.properties` and including method annotation `@TimeLimiter(name = "inventory")`
+  - This means that the request will time out after 3 seconds
+  - We will also return a CompletableFuture to cater to asynchronous calls (thus changing method signature from `String` to `CompletableFuture<String>`)
+  - To simulate the timeout/slow response manually, we add `Thread.sleep(10_000)` to `inventory-service` and send a request from `order-service`
+    ![Order Service Timeout](/figure/CircuitBreaker_TimeLimiter.png)
+    **Note: The timeout exception is thrown from `order-service` and is independent of the `Thread.sleep()` in `inventory-service`**
+- Prior to calling the "fallback" method to handle timeout API calls / responses, we can make more attempts to call the API to root out random errors.
+  - We include Retry features of Resilience4j by adding `resilience4j.retry.instances.inventory.maxAttempts=3` and `resilience4j.retry.instances.inventory.wait-duration=5s` to `application.properties` and including method annotation `@Retry(name = "inventory")`
+  - We will also return a CompletableFuture to cater to asynchronous calls (thus changing method signature from `String` to `CompletableFuture<String>`)
+  - To simulate the timeout/slow response manually, we utilise the `Thread.sleep(10_000)` in `inventory-service` previously and send a request from `order-service`
+    ![Order Service Retry](/figure/CircuitBreaker_Retry.png)
+    **Note: The retry are made 8s apart (after 3s timeout from the `order-service`, and 5s wait from the `application.properties`). Timeout exception is finally thrown 3s after the last retry attempt.**
+  - We can check the retry event logs at `http://localhost:<port>/actuator/retryevents`
+    ![Order Service Retry Events](/figure/CircuitBreaker_RetryEvents.png)
 
 ### Config Server
 - Config Server is used to manage the configuration of all the microservices
@@ -420,7 +463,6 @@ third-party application to obtain access on its own behalf.  This specification 
 **Background**
 - A realm in Keycloak is equivalent to a tenant. Each realm allows an administrator to create isolated groups of applications and users
 - Initially, Keycloak includes a single realm, called master. Use this realm only for managing Keycloak and not for managing any applications
-- 
 
 1. Login to Keycloak admin console at `http://localhost:8181/admin`
 2. Create a realm `spring-boot-microservices-realm` and enable client credential grant by disabling `Standard Flow Enabled` and `Direct Access Grants Enabled`, while enabling `Service Accounts Enabled`
