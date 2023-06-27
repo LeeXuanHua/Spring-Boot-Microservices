@@ -1,8 +1,7 @@
 package com.microservices.productservice;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.microservices.productservice.dto.ProductResponse;
 import com.microservices.productservice.dto.ProductRequest;
+import com.microservices.productservice.dto.ProductResponse;
 import com.microservices.productservice.model.Product;
 import com.microservices.productservice.repository.ProductRepository;
 import com.microservices.productservice.service.ProductService;
@@ -15,7 +14,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
