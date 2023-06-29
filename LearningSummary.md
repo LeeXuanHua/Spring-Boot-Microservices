@@ -376,6 +376,35 @@
     ![Order Tracing API Gateway](/figure/DistributedTracing_CorrectOrderTracing(APIGateway).png)
     ![Order Tracing InventoryServiceLookup](/figure/DistributedTracing_CorrectOrderTracing(InventoryServiceLookup).png)
 
+#### Micrometer Tracing and Zipkin Brave
+- In the case where we prefer Spring Boot 3.x, we will have to switch to Micrometer Tracing
+- Installations, different usages and testings can be found in [Micrometer Docs](https://micrometer.io/docs/tracing)
+- Notes:
+  1. `management.zipkin.tracing.endpoint` is enabled by Spring's `actuator` library
+  2. Create an observability metric using:
+    ```java
+            // Create a span, name it and register it
+            Observation inventoryServiceObservation = Observation.createNotStarted(
+                    "inventory-service-lookup",
+                    this.observationRegistry
+            );
+            // Add a tag of key="call", value="inventory-service" for easy lookup
+            inventoryServiceObservation.lowCardinalityKeyValue("call", "inventory-service");
+    ```
+  3. View the created metric for observability from `http://localhost:<port>/actuator/metrics/<spanName>`
+    ![Observability Metrics Available from Actuator Page](/figure/DistributedTracing_ActuatorObservabilityMetric.png)
+- However, the above code does not seem to resolve the Trace ID problem
+  - From the Zipkin UI, we can see that there are 4 separate Trace IDs created for 1 order-service invocation
+      ![Order Tracing Micrometer Error Overview](/figure/DistributedTracing_ErrorneousMicrometerOrderTracing(Overview).png)
+  - Looking at the Spring Boot Logs, we confirm that the 4 Trace IDs correspond to:
+      ![Order Tracing Micrometer Error Logs](/figure/DistributedTracing_ErrorneousMicrometerOrderTracing(Logs).png)
+    1. Order Controller
+    2. Order Service
+    3. Inventory Controller (2 webclient invocations from Order Service)
+  - Therefore, it is suspected that:
+    1. Order Controller's `supplyAsync` function created a "new Thread" (therefore, Order Controller's Trace ID differs from Order Service)
+        ![Suspect `supplyAsync` Created "New Threads"](/figure/DistributedTracing_ErrorneousMicrometerOrderTracing(SuspectAsync).png)
+    2. Order Service's `inventoryServiceObservation.observe()` failed to capture the `webClientBuilder` invocations
 
 ### Config Server
 - Config Server is used to manage the configuration of all the microservices
