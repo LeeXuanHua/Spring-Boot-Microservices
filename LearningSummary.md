@@ -14,8 +14,8 @@
     - [Load Balancer (Client-Side)](#load-balancer--client-side-)
     - [API Gateway](#api-gateway)
     - [Circuit Breaker](#circuit-breaker)
-    - [Configuration Server](#config-server)
     - [Distributed Tracing](#distributed-tracing)
+    - [Configuration Server](#config-server)
     - [Fault Tolerance](#fault-tolerance)
     - [Messaging / Message Broker](#messaging--message-broker)
     - [Distributed Session](#distributed-session)
@@ -306,11 +306,80 @@
   - We can check the retry event logs at `http://localhost:<port>/actuator/retryevents`
     ![Order Service Retry Events](/figure/CircuitBreaker_RetryEvents.png)
 
+### Distributed Tracing
+![Distributed Tracing Overview](/figure/DistributedTracing_Overview.png)
+- Distributed Tracing is used to track the request flow between microservices
+  - Trace ID is a collection of Span IDs
+  - Span ID is a collection of Trace Events
+  - Trace Events are the events that occur in a microservice (e.g. HTTP Request from a particular function)
+- [Spring Cloud Sleuth](https://spring.io/projects/spring-cloud-sleuth) is used to implement Distributed Tracing
+  - Sleuth is a wrapper around Zipkin and Jaeger
+  - Sleuth is used to generate Trace ID and Span ID
+  - Sleuth is used to send Trace Events to Zipkin or Jaeger
+- Note that: [Micrometer](https://micrometer.io/docs/tracing) is the new way to implement Distributed Tracing
+- Some Distributed Tracing Libraries with UI: [Zipkin](https://zipkin.io/), [Jaeger](https://www.aspecto.io/blog/jaeger-tracing-the-ultimate-guide/)
+
+#### Old Version - Spring Cloud Sleuth and Zipkin
+- In this project, we will be using Spring Cloud Sleuth and Zipkin
+    ```groovy
+        // When using Spring Boot 3.x and Spring Cloud 2022.x
+        implementation 'org.springframework.cloud:spring-cloud-starter-sleuth:3.1.7'
+        implementation 'org.springframework.cloud:spring-cloud-sleuth-zipkin:3.1.7'  
+    ```
+  - Set Spring Cloud Sleuth properties based on the [documentation](https://docs.spring.io/spring-cloud-sleuth/docs/current-SNAPSHOT/reference/html/appendix.html)
+  - Start Zipkin Server by running `docker run -d -p 9411:9411 openzipkin/zipkin` (accessible on `localhost:9411`)
+  - Note that [Spring Cloud Sleuth](https://github.com/spring-cloud/spring-cloud-sleuth/tree/3.1.x) is now deprecated in favour of `Micrometer`
+    > Spring Cloud Sleuth will not work with Spring Boot 3.x onward. The last major version of Spring Boot that Sleuth will support is 2.x.
+    
+    ![Spring Cloud Sleuth Not Compatible with Spring Cloud 2022.](/figure/DistributedTracing_SpringCloudSleuthDeprecation.png)
+    **Note: Spring Cloud Sleuth is [not compatible](https://stackoverflow.com/questions/74191028/spring-boot-2-6-incompatible-with-cloud-sleuth-3-1-4) with [Release Train]((https://spring.io/projects/spring-cloud)) for Spring Cloud 2022.0.x / Spring Boot 3.0.x**
+  - To resolve this error temporarily, we can disable compatibility verification via `spring.cloud.compatibility-verifier.enabled=false`
+  - However, this is suspected to lead to errors with missing Trace and Span IDs:
+    ![Missing Trace and Span IDs](/figure/DistributedTracing_ExpectedVsActualTraceSpan.png)
+- Additionally, we would also notice that sending a request to the `/api/order` endpoint will result in 2 different Trace IDs:
+  ![Different Trace IDs for `inventory-service` and `order-service`](/figure/DistributedTracing_ExpectedvsActualTraceId.png)
+  - The difference in Trace ID is due to Circuit Breaker's `@Retry`, which is a **separate thread** from the main thread
+  - Disabling the Circuit Breaker will temporarily resolve this issue
+  - However, for long term resolution, we should specify the next Span ID (to link with the current Trace ID):
+    ```java
+    public class OrderService {
+        // Other code ...
+        private final Tracer tracer;
+    
+        public String placeOrder(OrderRequest orderRequest) {
+            // Other code ...
+            // Specify a span named "InventoryServiceLookup" to wrap around the call to inventory-service
+            Span inventoryServiceLookup = tracer.nextSpan().name("InventoryServiceLookup");
+            
+            // Wrap the call to inventory-service in a try-finally block to ensure the span is closed
+            try (Tracer.SpanInScope spanInScope = tracer.withSpan(inventoryServiceLookup.start())) {
+                // Other code ...
+            } finally {
+                inventoryServiceLookup.end();
+            }
+        }
+    }
+    ```
+  **Note the above code is for Spring Cloud Sleuth (Spring Boot 2.x). Therefore, the code will not compile for Spring Boot 3.x, and we will replace them with Micrometer Tracing for Spring Boot 3.x**
+- If we prefer to stick to the above, we will need the following changes to `build.gradle`:
+  1. `id 'org.springframework.boot' version '2.7.7' apply true` ([Referenced Version](https://github.com/spring-cloud/spring-cloud-release/wiki/Spring-Cloud-2021.0-Release-Notes))
+  2. `set('springCloudVersion', "2021.0.7")`
+  3. `implementation 'org.springframework.cloud:spring-cloud-starter-sleuth'` (Use default version provided)
+  4. `implementation 'org.springframework.cloud:spring-cloud-sleuth-zipkin'` (Use default version provided)
+  5. Change `import jakarta.persistence.*;` to `import javax.persistence.*;` for `Order.java` and `OrderLineItems.java`
+  6. Fix other import errors
+- Using Spring Boot 2.x and Spring Cloud 2021.x, the behaviours are as expected:
+  - **Product Tracing:**
+    ![Product Tracing Works](/figure/DistributedTracing_CorrectProductTracing.png)
+  - **Order Tracing:**
+    ![Order Tracing Overview](/figure/DistributedTracing_CorrectOrderTracing(Overview).png)
+    ![Order Tracing API Gateway](/figure/DistributedTracing_CorrectOrderTracing(APIGateway).png)
+    ![Order Tracing InventoryServiceLookup](/figure/DistributedTracing_CorrectOrderTracing(InventoryServiceLookup).png)
+
+
 ### Config Server
 - Config Server is used to manage the configuration of all the microservices
 
-### Distributed Tracing
-- Distributed Tracing is used to track the request flow between microservices
 
 ### Fault Tolerance
 - Fault Tolerance is used to handle the failure of a service
