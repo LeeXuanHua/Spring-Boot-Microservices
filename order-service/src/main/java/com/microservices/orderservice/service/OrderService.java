@@ -7,10 +7,12 @@ import com.microservices.orderservice.dto.OrderRequest;
 import com.microservices.orderservice.model.Order;
 import com.microservices.orderservice.model.OrderLineItems;
 import com.microservices.orderservice.repository.OrderRepository;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cloud.sleuth.Span;
-import org.springframework.cloud.sleuth.Tracer;
+// import org.springframework.cloud.sleuth.Span;
+// import org.springframework.cloud.sleuth.Tracer;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -26,7 +28,8 @@ import java.util.UUID;
 public class OrderService {
     private final OrderRepository orderRepository;
     private final WebClient.Builder webClientBuilder;
-    private final Tracer tracer;
+//    private final Tracer tracer;
+    private final ObservationRegistry observationRegistry;
 
     /**
      * Places an order via OrderRequest, which may consist of 1 or more Order. UUIDs are created for each Order
@@ -47,13 +50,16 @@ public class OrderService {
                 .map(OrderLineItems::getSkuCode)
                 .toList();
 
-        log.info("Calling inventory service");
+        // Create a span, name it and register it
+        Observation inventoryServiceObservation = Observation.createNotStarted(
+                "inventory-service-lookup",
+                this.observationRegistry
+        );
+        // Add a tag of key="call", value="inventory-service" for easy lookup
+        inventoryServiceObservation.lowCardinalityKeyValue("call", "inventory-service");
 
-        // Specify a span named "InventoryServiceLookup" to wrap around the call to inventory-service
-        Span inventoryServiceLookup = tracer.nextSpan().name("InventoryServiceLookup");
-
-        // Wrap the call to inventory-service in a try-finally block to ensure the span is closed
-        try (Tracer.SpanInScope spanInScope = tracer.withSpan(inventoryServiceLookup.start())) {
+        return inventoryServiceObservation.observe(() -> {
+            log.info("Get request to inventory service");
             // Call inventory-service and place order if product is in stock
             InventoryResponse[] inventoryResponseArray = webClientBuilder.build().get()
                     .uri("http://inventory-service/api/inventory",
@@ -79,6 +85,8 @@ public class OrderService {
                                         .quantity(orderLineItem.getQuantity())
                                         .build()
                         ).toList();
+
+                log.info("Post request to inventory service");
                 webClientBuilder.build().post()
                         .uri("http://inventory-service/api/inventory/decrement")
                         .bodyValue(inventoryRequests)
@@ -90,9 +98,52 @@ public class OrderService {
             } else {
                 throw new IllegalArgumentException("Product is not in stock, please try again later");
             }
-        } finally {
-            inventoryServiceLookup.end();
-        }
+        });
+
+//        // Specify a span named "InventoryServiceLookup" to wrap around the call to inventory-service
+//        Span inventoryServiceLookup = tracer.nextSpan().name("InventoryServiceLookup");
+//
+//        // Wrap the call to inventory-service in a try-finally block to ensure the span is closed
+//        try (Tracer.SpanInScope spanInScope = tracer.withSpan(inventoryServiceLookup.start())) {
+//            // Call inventory-service and place order if product is in stock
+//            InventoryResponse[] inventoryResponseArray = webClientBuilder.build().get()
+//                    .uri("http://inventory-service/api/inventory",
+//                            uriBuilder -> uriBuilder.queryParam("skuCode", skuCodes).build())
+//                    .retrieve()
+//                    .bodyToMono(InventoryResponse[].class)  // Reads the response body and converts it to a Mono
+//                    .block();                   // Blocks until the response is received
+//
+//            assert inventoryResponseArray != null;
+//            if (inventoryResponseArray.length != skuCodes.size()) {
+//                throw new IllegalArgumentException("Product does not exist!");
+//            }
+//
+//            boolean allProductsInStock = Arrays.stream(inventoryResponseArray).allMatch(InventoryResponse::isInStock);
+//
+//            if (allProductsInStock) {
+//                orderRepository.save(order);
+//
+//                List<InventoryRequest> inventoryRequests = order.getOrderLineItemsList().stream()
+//                        .map(orderLineItem ->
+//                                InventoryRequest.builder()
+//                                        .skuCode(orderLineItem.getSkuCode())
+//                                        .quantity(orderLineItem.getQuantity())
+//                                        .build()
+//                        ).toList();
+//                webClientBuilder.build().post()
+//                        .uri("http://inventory-service/api/inventory/decrement")
+//                        .bodyValue(inventoryRequests)
+//                        .retrieve()
+//                        .bodyToMono(Void.class)
+//                        .block();
+//
+//                return "Order placed successfully!";
+//            } else {
+//                throw new IllegalArgumentException("Product is not in stock, please try again later");
+//            }
+//        } finally {
+//            inventoryServiceLookup.end();
+//        }
     }
 
     /**
