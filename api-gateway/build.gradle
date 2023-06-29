@@ -1,6 +1,8 @@
 plugins {
 	id 'java'
-	id 'org.springframework.boot' version '3.1.0' apply true
+//	id 'org.springframework.boot' version '3.1.0' apply true
+	// If want to use Spring Cloud Sleuth, need to use Spring Boot 2.7.7
+	id 'org.springframework.boot' version '2.7.7' apply true
 	id 'io.spring.dependency-management' version '1.1.0'
 	id 'jacoco'
 }
@@ -20,7 +22,9 @@ repositories {
 }
 
 ext {
-	set('springCloudVersion', "2022.0.3")
+//	set('springCloudVersion', "2022.0.3")
+	// If want to use Spring Cloud Sleuth, need to use Spring Cloud 2021.0.7
+	set('springCloudVersion', "2021.0.7")
 }
 
 // To use as a library (and not boot up a Spring application), we need to disable the Spring Boot plugin
@@ -44,6 +48,9 @@ dependencies {
 	implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
 	implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
+	// If want to use Spring Cloud Sleuth
+	implementation 'org.springframework.cloud:spring-cloud-starter-sleuth'
+	implementation 'org.springframework.cloud:spring-cloud-sleuth-zipkin'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 }
 
