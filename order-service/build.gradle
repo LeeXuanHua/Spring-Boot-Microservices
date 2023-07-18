@@ -82,10 +82,20 @@ test {
 
 jacocoTestReport {
 	dependsOn test // tests are required to run before generating the report
+
+	afterEvaluate {	// Exclude some classes from the report
+		classDirectories.setFrom(files(classDirectories.files.collect {
+			fileTree(dir: it, exclude: [
+					"**/*Application.class",
+					"**/config/*"
+			])
+		}))
+	}
+
 	reports {
 		xml.required = false
 		csv.required = false
-		html.outputLocation = layout.buildDirectory.dir('jacocoHtml')
+		html.outputLocation = layout.buildDirectory.dir('jacocoHtml')	// Default is build/reports/jacoco/test/html
 	}
 }
 

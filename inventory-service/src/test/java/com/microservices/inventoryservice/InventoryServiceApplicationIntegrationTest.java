@@ -33,7 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 )
 @Testcontainers
 @AutoConfigureMockMvc
-public class InventoryControllerIntegrationTest {
+public class InventoryServiceApplicationIntegrationTest {
     @Container
     private static final MySQLContainer sqlContainer = new MySQLContainer<>("mysql:8.0");
     @Autowired

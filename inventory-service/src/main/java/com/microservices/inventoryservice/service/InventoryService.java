@@ -18,7 +18,7 @@ public class InventoryService {
     private final InventoryRepository inventoryRepository;
 
     @Transactional(readOnly = true) // Indicate that this method is read-only (cannot modify database)
-    @SneakyThrows // Suppresses the need to catch or throw the exception (do not use this in production, as it hides the exception)
+//    @SneakyThrows // Suppresses the need to catch or throw the exception (do not use this in production, as it hides the exception - used for Thread.sleep's java.lang.InterruptedException exception)
     public List<InventoryResponse> isInStock(List<String> skuCode) {
         // Simulate a slow response (to test and trigger timeout from the circuit breaker)
 //        log.info("Wait started");

@@ -35,7 +35,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 )
 @Testcontainers
 @AutoConfigureMockMvc
-public class ProductControllerIntegrationTest {
+public class ProductServiceApplicationIntegrationTest {
     private static final String mongoTestContainer = "mongo:4.4.2";
     @Container
     static final MongoDBContainer mongoDBContainer = new MongoDBContainer(DockerImageName.parse(mongoTestContainer));

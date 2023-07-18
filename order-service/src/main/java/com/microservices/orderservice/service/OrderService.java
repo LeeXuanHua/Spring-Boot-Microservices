@@ -76,6 +76,15 @@ public class OrderService {
             boolean allProductsInStock = Arrays.stream(inventoryResponseArray).allMatch(InventoryResponse::isInStock);
 
             if (allProductsInStock) {
+                // Code to demonstrate async timing (and @TimeLimiter's resilience4j.timelimiter.instances.inventory.timeout-duration=3s)
+                // At 2s, the testing will still work; At 3s, the testing will fail
+//                try {
+//                    log.info("Going to sleep for 2 seconds");
+//                    sleep(2000);
+//                } catch (InterruptedException e) {
+//                    log.info("Error detected while sleeping");
+//                    throw new RuntimeException(e);
+//                }
                 orderRepository.save(order);
 
                 List<InventoryRequest> inventoryRequests = order.getOrderLineItemsList().stream()

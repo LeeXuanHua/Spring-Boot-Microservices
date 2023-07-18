@@ -128,9 +128,42 @@
 ### Test Coverage
 - Use Jacoco to manage test coverage (Refer to `build.gradle` for configurations to generate test coverage report)
 - Test coverage report can be found in `build/jacocoHtml/index.html`
+- We can exclude specific files, change report destination, specify report format, etc. (Refer to `jacocoTestReport` in `build.gradle`)
 - Although test coverage is not a good metric to measure the quality of tests, it is still a good indicator to see if there are any missing tests
 - Cyclomatic complexity measures function complexity (incl. conditions and iterations), indicating if function ought to be decomposed further to better adhere to Single Responsibility Principle
 - Ideally, the threshold for test coverage is around 80% and cyclomatic complexity <= 10
+
+### Asynchronous Testing
+- By default, Spring Boot tests will return immediately after the test method has been executed, without waiting for any asynchronous tasks to complete
+  - Therefore, `order-service`'s `CompletableFuture<String> placeOrder` method, will not finish executing before the test method returns (Executes up till `orderRepository.save(order);` before the test method returns in about 0.5 seconds)
+  - This will cause the test to fail, as the test method will not be able to assert the result of the `CompletableFuture<String> placeOrder` method, nor the repository save operation
+- To avoid checking assert cases before CompletableFuture returns, we will follow: https://howtodoinjava.com/spring-boot2/testing/test-async-controller-mockmvc/
+  - Refer to `OrderControllerIntegrationTest.java` for the code to fix this async problem:
+    ```java
+    MvcResult mvcResult = mockMvc.perform(MockMvcRequestBuilders.post("/api/order")
+        .contentType(MediaType.APPLICATION_JSON)
+        .content(orderRequestString))
+        .andExpect(request().asyncStarted())
+        .andDo(MockMvcResultHandlers.log())
+        .andReturn();
+    
+    mockMvc.perform(asyncDispatch(mvcResult))
+            .andExpect(status().isCreated())
+            .andExpect(content().string("Order placed successfully!"));
+    ```
+  - Refer to `OrderService.java` for proof on the above concept:
+    ```java
+    // Code to demonstrate async timing (and @TimeLimiter's resilience4j.timelimiter.instances.inventory.timeout-duration=3s)
+    // At 2s, the testing will still work; At 3s, the testing will fail
+    try {
+        log.info("Going to sleep for 2 seconds");
+        sleep(3000);
+    } catch (InterruptedException e) {
+        log.info("Error detected while sleeping");
+        throw new RuntimeException(e);
+    }
+    ```
+- Note that the code fix will not work if our main code takes more than 3 seconds to execute. This is because of `@TimeLimiter`'s `resilience4j.timelimiter.instances.inventory.timeout-duration=3s` configuration.
 
 
 ## Inter-Process Communication
@@ -318,6 +351,27 @@
   - Sleuth is used to send Trace Events to Zipkin or Jaeger
 - Note that: [Micrometer](https://micrometer.io/docs/tracing) is the new way to implement Distributed Tracing
 - Some Distributed Tracing Libraries with UI: [Zipkin](https://zipkin.io/), [Jaeger](https://www.aspecto.io/blog/jaeger-tracing-the-ultimate-guide/)
+- **Metrics**
+  - An aggregation of every single request (not based on sampled data)
+  - Used for alerting, SLOs (service-level objectives), and dashboards to ensure all requests are seen
+  - Have various cardinality (low = finite set of possible values, high = infinite set of possible values)
+  - E.g. Memory, CPU usage, garbage collection, caches, top requests, top failed requests, etc.
+- **Trace Data**
+  - Usually needs to be sampled at high volumes of traffic because the amount of data increases proportionally to the traffic volume
+  - Includes Trace ID, Span ID, tags, etc.
+
+
+#### Understanding the Tools
+- Reference Materials:
+  - https://spring.io/guides/tutorials/metrics-and-tracing/
+- Understanding Spring Boot Actuator and Micrometer
+> Spring Boot Actuator brings in Micrometer, which provides a simple facade over the instrumentation clients for the most popular monitoring systems, letting you instrument your JVM-based application code without vendor lock-in. Think “**SLF4J for metrics**”.
+> 
+> The most straightforward use of Micrometer is to **capture metrics and keep them in memory,** which Spring Boot Actuator does. You can configure your application to show those metrics under an Actuator management endpoint: /actuator/metrics/. More commonly, though, you want to **send these metrics to a time-series database**, such as Graphite, Prometheus, Netflix Atlas, Datadog, or InfluxDB. Time series databases store the evolving value of a metric over time, so you can see how it has changed.
+- Understanding Spring Cloud Sleuth / Zipkin
+> We also want to have **detailed breakdowns of individual requests** and traces to give us **context** around particular failed requests. The Sleuth starter brings in the Spring Cloud Sleuth distributed tracing abstraction, which provides a **simple facade over distributed tracing systems**, such as OpenZipkin and Google Cloud Stackdriver Trace and Wavefront.
+- Overview of Micrometer vs Sleuth
+> Micrometer and Sleuth give you the power of choice in metrics and tracing backends. We could use these two different abstractions and separately stand up a dedicated cluster for our tracing and metrics aggregation systems. Because **these tools do not tie you to a particular vendor**, they give you a lot of flexibility around how you build your tracing and metrics framework.
 
 #### Old Version - Spring Cloud Sleuth and Zipkin
 - In this project, we will be using Spring Cloud Sleuth and Zipkin
@@ -405,10 +459,10 @@
     1. Order Controller's `supplyAsync` function created a "new Thread" (therefore, Order Controller's Trace ID differs from Order Service)
         ![Suspect `supplyAsync` Created "New Threads"](/figure/DistributedTracing_ErrorneousMicrometerOrderTracing(SuspectAsync).png)
     2. Order Service's `inventoryServiceObservation.observe()` failed to capture the `webClientBuilder` invocations
+- Other useful materials: https://www.appsdeveloperblog.com/micrometer-and-zipkin-in-spring-boot/
 
 ### Config Server
 - Config Server is used to manage the configuration of all the microservices
-
 
 ### Fault Tolerance
 - Fault Tolerance is used to handle the failure of a service

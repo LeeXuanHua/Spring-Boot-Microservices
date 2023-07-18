@@ -19,7 +19,9 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
+import org.springframework.test.web.servlet.result.MockMvcResultHandlers;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -36,7 +38,8 @@ import java.util.function.Function;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @RunWith(SpringRunner.class)    // Automatically included by @SpringBootTest
 @SpringBootTest(
@@ -45,7 +48,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 )
 @Testcontainers
 @AutoConfigureMockMvc
-public class OrderControllerIntegrationTest {
+public class OrderServiceApplicationIntegrationTest {
     @Container
     private static final MySQLContainer sqlContainer = new MySQLContainer<>("mysql:8.0");
     @Autowired
@@ -125,14 +128,26 @@ public class OrderControllerIntegrationTest {
         when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
         when(responseSpec.bodyToMono(Void.class)).thenReturn(Mono.empty());
 
-        String returnValue = mockMvc.perform(MockMvcRequestBuilders.post("/api/order")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(orderRequestString))
+        // Fails - Response is not returned due to the asynchronous nature of the controller (CompletableFuture)
+//        String returnValue = mockMvc.perform(MockMvcRequestBuilders.post("/api/order")
+//                        .contentType(MediaType.APPLICATION_JSON)
+//                        .content(orderRequestString))
+//                .andExpect(status().isCreated())
+//                .andReturn().getResponse().getContentAsString();
+
+        // Reference: https://howtodoinjava.com/spring-boot2/testing/test-async-controller-mockmvc/
+        MvcResult mvcResult = mockMvc.perform(MockMvcRequestBuilders.post("/api/order")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(orderRequestString))
+                .andExpect(request().asyncStarted())
+                .andDo(MockMvcResultHandlers.log())
+                .andReturn();
+
+        mockMvc.perform(asyncDispatch(mvcResult))
                 .andExpect(status().isCreated())
-                .andReturn().getResponse().getContentAsString();
+                .andExpect(content().string("Order placed successfully!"));
 
         Assertions.assertEquals(1, orderRepository.findAll().size());
-        Assertions.assertEquals("Order placed successfully", returnValue);
     }
 
     @Test

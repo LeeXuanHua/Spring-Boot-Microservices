@@ -8,6 +8,8 @@ This project features the following:
 4. **Notification Service** - Send notifications, after order is placed
 5. **API Gateway** - Single entry point for all services
 6. **Discovery Server** - Service discovery for multiple instances of each service
+7. **OIDC Security via Keycloak** - Secure backend resource server using OIDC and OAuth 2.0 from self-hosted Identity Provider & Authorization Server at `http://localhost:8181/admin`
+8. **Distributed Tracing via Zipkin** - View the flow of requests across services at `http://localhost:9411`
 
 System Architecture:
 ![Application System Architecture](/figure/System%20Architecture.png)
@@ -19,11 +21,10 @@ System Architecture:
 4. Docker
 
 ## How to Run
-#### Clone this repository and build the project
+#### Clone this repository (build the project only after running the following subsequent instructions)
 ```bash
 git clone https://github.com/LeeXuanHua/Spring-Boot-Microservices.git
 cd spring-boot-microservices
-./gradlew clean build
 ```
 
 #### Set up MySQL database
@@ -43,8 +44,16 @@ For our case, our initial Keycloak setup is as follows:
 docker run -p 8181:8080 -e KEYCLOAK_ADMIN=admin -e KEYCLOAK_ADMIN_PASSWORD=admin quay.io/keycloak/keycloak:21.1.1 start-dev
 ```
 
-#### To run all the microservices, run the following commands
+#### Set up Distributed Tracing via Zipkin
 ```bash
+docker run -d -p 9411:9411 openzipkin/zipkin
+```
+
+#### To build and run all the microservices, execute the following commands
+```bash
+# Build the project
+./gradlew clean build
+
 # On all terminals from spring-boot-microservices/, run the following command:
 source ./importMySQLCredentials.sh
 
