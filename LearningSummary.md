@@ -14,7 +14,6 @@
     - [Load Balancer (Client-Side)](#load-balancer--client-side-)
     - [API Gateway](#api-gateway)
     - [Circuit Breaker](#circuit-breaker)
-    - [Distributed Tracing](#distributed-tracing)
     - [Configuration Server](#config-server)
     - [Fault Tolerance](#fault-tolerance)
     - [Messaging / Message Broker](#messaging--message-broker)
@@ -27,7 +26,8 @@
    - [Keycloak Configuration](#keycloak-configuration)
    - [Analysing Our Java Spring Boot Code](#analysing-our-java-spring-boot-code)
    - [Other Spring Security Features Pending Implementation](#other-spring-security-features-pending-implementation)
-7. [Spring Boot Logging](#spring-boot-logging)
+7. [Distributed Tracing](#distributed-tracing)
+8. [Spring Boot Logging](#spring-boot-logging)
 
 ## Gradle
 1. Clean, rebuild and run project
@@ -230,6 +230,14 @@
 - Problem It Addresses: Earlier in Service Discovery, we spun up multiple instances. Updating the `localhost:8082` for the `WebClient` to `inventory-service` raises the problem of which instance to call (when there are >1 instances registered)
   ![Error Code for Order Service](/figure/LoadBalancer_DiscoveryError.png)
 - How It Works: `@LoadBalanced` from Spring Cloud Client will be applied to a **Client-Side** `RestTemplate` or `WebClient` bean to distribute the load between the instances
+- Note that the above only applies to the builder class (e.g. `WebClient.Builder` instead of `WebClient`)
+  - Therefore, the following will not work:
+    ```java
+    @Bean
+    public WebClient webClient() {
+        return WebClient.builder.build();
+    }
+    ```
 
 ### API Gateway
 - API Gateway is a single entry point for all the microservices
@@ -338,128 +346,6 @@
     **Note: The retry are made 8s apart (after 3s timeout from the `order-service`, and 5s wait from the `application.properties`). Timeout exception is finally thrown 3s after the last retry attempt.**
   - We can check the retry event logs at `http://localhost:<port>/actuator/retryevents`
     ![Order Service Retry Events](/figure/CircuitBreaker_RetryEvents.png)
-
-### Distributed Tracing
-![Distributed Tracing Overview](/figure/DistributedTracing_Overview.png)
-- Distributed Tracing is used to track the request flow between microservices
-  - Trace ID is a collection of Span IDs
-  - Span ID is a collection of Trace Events
-  - Trace Events are the events that occur in a microservice (e.g. HTTP Request from a particular function)
-- [Spring Cloud Sleuth](https://spring.io/projects/spring-cloud-sleuth) is used to implement Distributed Tracing
-  - Sleuth is a wrapper around Zipkin and Jaeger
-  - Sleuth is used to generate Trace ID and Span ID
-  - Sleuth is used to send Trace Events to Zipkin or Jaeger
-- Note that: [Micrometer](https://micrometer.io/docs/tracing) is the new way to implement Distributed Tracing
-- Some Distributed Tracing Libraries with UI: [Zipkin](https://zipkin.io/), [Jaeger](https://www.aspecto.io/blog/jaeger-tracing-the-ultimate-guide/)
-- **Metrics**
-  - An aggregation of every single request (not based on sampled data)
-  - Used for alerting, SLOs (service-level objectives), and dashboards to ensure all requests are seen
-  - Have various cardinality (low = finite set of possible values, high = infinite set of possible values)
-  - E.g. Memory, CPU usage, garbage collection, caches, top requests, top failed requests, etc.
-- **Trace Data**
-  - Usually needs to be sampled at high volumes of traffic because the amount of data increases proportionally to the traffic volume
-  - Includes Trace ID, Span ID, tags, etc.
-
-
-#### Understanding the Tools
-- Reference Materials:
-  - https://spring.io/guides/tutorials/metrics-and-tracing/
-- Understanding Spring Boot Actuator and Micrometer
-> Spring Boot Actuator brings in Micrometer, which provides a simple facade over the instrumentation clients for the most popular monitoring systems, letting you instrument your JVM-based application code without vendor lock-in. Think “**SLF4J for metrics**”.
-> 
-> The most straightforward use of Micrometer is to **capture metrics and keep them in memory,** which Spring Boot Actuator does. You can configure your application to show those metrics under an Actuator management endpoint: /actuator/metrics/. More commonly, though, you want to **send these metrics to a time-series database**, such as Graphite, Prometheus, Netflix Atlas, Datadog, or InfluxDB. Time series databases store the evolving value of a metric over time, so you can see how it has changed.
-- Understanding Spring Cloud Sleuth / Zipkin
-> We also want to have **detailed breakdowns of individual requests** and traces to give us **context** around particular failed requests. The Sleuth starter brings in the Spring Cloud Sleuth distributed tracing abstraction, which provides a **simple facade over distributed tracing systems**, such as OpenZipkin and Google Cloud Stackdriver Trace and Wavefront.
-- Overview of Micrometer vs Sleuth
-> Micrometer and Sleuth give you the power of choice in metrics and tracing backends. We could use these two different abstractions and separately stand up a dedicated cluster for our tracing and metrics aggregation systems. Because **these tools do not tie you to a particular vendor**, they give you a lot of flexibility around how you build your tracing and metrics framework.
-
-#### Old Version - Spring Cloud Sleuth and Zipkin
-- In this project, we will be using Spring Cloud Sleuth and Zipkin
-    ```groovy
-        // When using Spring Boot 3.x and Spring Cloud 2022.x
-        implementation 'org.springframework.cloud:spring-cloud-starter-sleuth:3.1.7'
-        implementation 'org.springframework.cloud:spring-cloud-sleuth-zipkin:3.1.7'  
-    ```
-  - Set Spring Cloud Sleuth properties based on the [documentation](https://docs.spring.io/spring-cloud-sleuth/docs/current-SNAPSHOT/reference/html/appendix.html)
-  - Start Zipkin Server by running `docker run -d -p 9411:9411 openzipkin/zipkin` (accessible on `localhost:9411`)
-  - Note that [Spring Cloud Sleuth](https://github.com/spring-cloud/spring-cloud-sleuth/tree/3.1.x) is now deprecated in favour of `Micrometer`
-    > Spring Cloud Sleuth will not work with Spring Boot 3.x onward. The last major version of Spring Boot that Sleuth will support is 2.x.
-    
-    ![Spring Cloud Sleuth Not Compatible with Spring Cloud 2022.](/figure/DistributedTracing_SpringCloudSleuthDeprecation.png)
-    **Note: Spring Cloud Sleuth is [not compatible](https://stackoverflow.com/questions/74191028/spring-boot-2-6-incompatible-with-cloud-sleuth-3-1-4) with [Release Train]((https://spring.io/projects/spring-cloud)) for Spring Cloud 2022.0.x / Spring Boot 3.0.x**
-  - To resolve this error temporarily, we can disable compatibility verification via `spring.cloud.compatibility-verifier.enabled=false`
-  - However, this is suspected to lead to errors with missing Trace and Span IDs:
-    ![Missing Trace and Span IDs](/figure/DistributedTracing_ExpectedVsActualTraceSpan.png)
-- Additionally, we would also notice that sending a request to the `/api/order` endpoint will result in 2 different Trace IDs:
-  ![Different Trace IDs for `inventory-service` and `order-service`](/figure/DistributedTracing_ExpectedvsActualTraceId.png)
-  - The difference in Trace ID is due to Circuit Breaker's `@Retry`, which is a **separate thread** from the main thread
-  - Disabling the Circuit Breaker will temporarily resolve this issue
-  - However, for long term resolution, we should specify the next Span ID (to link with the current Trace ID):
-    ```java
-    public class OrderService {
-        // Other code ...
-        private final Tracer tracer;
-    
-        public String placeOrder(OrderRequest orderRequest) {
-            // Other code ...
-            // Specify a span named "InventoryServiceLookup" to wrap around the call to inventory-service
-            Span inventoryServiceLookup = tracer.nextSpan().name("InventoryServiceLookup");
-            
-            // Wrap the call to inventory-service in a try-finally block to ensure the span is closed
-            try (Tracer.SpanInScope spanInScope = tracer.withSpan(inventoryServiceLookup.start())) {
-                // Other code ...
-            } finally {
-                inventoryServiceLookup.end();
-            }
-        }
-    }
-    ```
-  **Note the above code is for Spring Cloud Sleuth (Spring Boot 2.x). Therefore, the code will not compile for Spring Boot 3.x, and we will replace them with Micrometer Tracing for Spring Boot 3.x**
-- If we prefer to stick to the above, we will need the following changes to `build.gradle`:
-  1. `id 'org.springframework.boot' version '2.7.7' apply true` ([Referenced Version](https://github.com/spring-cloud/spring-cloud-release/wiki/Spring-Cloud-2021.0-Release-Notes))
-  2. `set('springCloudVersion', "2021.0.7")`
-  3. `implementation 'org.springframework.cloud:spring-cloud-starter-sleuth'` (Use default version provided)
-  4. `implementation 'org.springframework.cloud:spring-cloud-sleuth-zipkin'` (Use default version provided)
-  5. Change `import jakarta.persistence.*;` to `import javax.persistence.*;` for `Order.java` and `OrderLineItems.java`
-  6. Fix other import errors
-- Using Spring Boot 2.x and Spring Cloud 2021.x, the behaviours are as expected:
-  - **Product Tracing:**
-    ![Product Tracing Works](/figure/DistributedTracing_CorrectProductTracing.png)
-  - **Order Tracing:**
-    ![Order Tracing Overview](/figure/DistributedTracing_CorrectOrderTracing(Overview).png)
-    ![Order Tracing API Gateway](/figure/DistributedTracing_CorrectOrderTracing(APIGateway).png)
-    ![Order Tracing InventoryServiceLookup](/figure/DistributedTracing_CorrectOrderTracing(InventoryServiceLookup).png)
-
-#### Micrometer Tracing and Zipkin Brave
-- In the case where we prefer Spring Boot 3.x, we will have to switch to Micrometer Tracing
-- Installations, different usages and testings can be found in [Micrometer Docs](https://micrometer.io/docs/tracing)
-- Notes:
-  1. `management.zipkin.tracing.endpoint` is enabled by Spring's `actuator` library
-  2. Create an observability metric using:
-    ```java
-            // Create a span, name it and register it
-            Observation inventoryServiceObservation = Observation.createNotStarted(
-                    "inventory-service-lookup",
-                    this.observationRegistry
-            );
-            // Add a tag of key="call", value="inventory-service" for easy lookup
-            inventoryServiceObservation.lowCardinalityKeyValue("call", "inventory-service");
-    ```
-  3. View the created metric for observability from `http://localhost:<port>/actuator/metrics/<spanName>`
-    ![Observability Metrics Available from Actuator Page](/figure/DistributedTracing_ActuatorObservabilityMetric.png)
-- However, the above code does not seem to resolve the Trace ID problem
-  - From the Zipkin UI, we can see that there are 4 separate Trace IDs created for 1 order-service invocation
-      ![Order Tracing Micrometer Error Overview](/figure/DistributedTracing_ErrorneousMicrometerOrderTracing(Overview).png)
-  - Looking at the Spring Boot Logs, we confirm that the 4 Trace IDs correspond to:
-      ![Order Tracing Micrometer Error Logs](/figure/DistributedTracing_ErrorneousMicrometerOrderTracing(Logs).png)
-    1. Order Controller
-    2. Order Service
-    3. Inventory Controller (2 webclient invocations from Order Service)
-  - Therefore, it is suspected that:
-    1. Order Controller's `supplyAsync` function created a "new Thread" (therefore, Order Controller's Trace ID differs from Order Service)
-        ![Suspect `supplyAsync` Created "New Threads"](/figure/DistributedTracing_ErrorneousMicrometerOrderTracing(SuspectAsync).png)
-    2. Order Service's `inventoryServiceObservation.observe()` failed to capture the `webClientBuilder` invocations
-- Other useful materials: https://www.appsdeveloperblog.com/micrometer-and-zipkin-in-spring-boot/
 
 ### Config Server
 - Config Server is used to manage the configuration of all the microservices
@@ -692,6 +578,252 @@ third-party application to obtain access on its own behalf.  This specification 
 1. [Authentication](https://docs.spring.io/spring-security/reference/features/authentication/index.html)
 2. [Protection Against Exploits](https://docs.spring.io/spring-security/reference/features/exploits/index.html)
 3. [Other Integrations](https://docs.spring.io/spring-security/reference/features/integrations/index.html)
+
+
+
+## Distributed Tracing
+![Distributed Tracing Overview](/figure/DistributedTracing_Overview.png)
+- Distributed Tracing is used to track the request flow between microservices
+    - Trace ID is a collection of Span IDs
+    - Span ID is a collection of Trace Events
+    - Trace Events are the events that occur in a microservice (e.g. HTTP Request from a particular function)
+- [Spring Cloud Sleuth](https://spring.io/projects/spring-cloud-sleuth) is used to implement Distributed Tracing
+    - Sleuth is a wrapper around Zipkin and Jaeger
+    - Sleuth is used to generate Trace ID and Span ID
+    - Sleuth is used to send Trace Events to Zipkin or Jaeger
+- Note that: [Micrometer](https://micrometer.io/docs/tracing) is the new way to implement Distributed Tracing
+- Some Distributed Tracing Libraries with UI: [Zipkin](https://zipkin.io/), [Jaeger](https://www.aspecto.io/blog/jaeger-tracing-the-ultimate-guide/)
+- **Metrics**
+    - An aggregation of every single request (not based on sampled data)
+    - Used for alerting, SLOs (service-level objectives), and dashboards to ensure all requests are seen
+    - Have various cardinality (low = finite set of possible values, high = infinite set of possible values)
+    - E.g. Memory, CPU usage, garbage collection, caches, top requests, top failed requests, etc.
+- **Trace Data**
+    - Usually needs to be sampled at high volumes of traffic because the amount of data increases proportionally to the traffic volume
+    - Includes Trace ID, Span ID, tags, etc.
+
+
+#### Understanding the Tools
+- Reference Materials:
+    - https://spring.io/guides/tutorials/metrics-and-tracing/
+- Understanding Spring Boot Actuator and Micrometer
+> Spring Boot Actuator brings in Micrometer, which provides a simple facade over the instrumentation clients for the most popular monitoring systems, letting you instrument your JVM-based application code without vendor lock-in. Think “**SLF4J for metrics**”.
+>
+> The most straightforward use of Micrometer is to **capture metrics and keep them in memory,** which Spring Boot Actuator does. You can configure your application to show those metrics under an Actuator management endpoint: /actuator/metrics/. More commonly, though, you want to **send these metrics to a time-series database**, such as Graphite, Prometheus, Netflix Atlas, Datadog, or InfluxDB. Time series databases store the evolving value of a metric over time, so you can see how it has changed.
+- Understanding Spring Cloud Sleuth / Zipkin
+> We also want to have **detailed breakdowns of individual requests** and traces to give us **context** around particular failed requests. The Sleuth starter brings in the Spring Cloud Sleuth distributed tracing abstraction, which provides a **simple facade over distributed tracing systems**, such as OpenZipkin and Google Cloud Stackdriver Trace and Wavefront.
+- Overview of Micrometer vs Sleuth
+> Micrometer and Sleuth give you the power of choice in metrics and tracing backends. We could use these two different abstractions and separately stand up a dedicated cluster for our tracing and metrics aggregation systems. Because **these tools do not tie you to a particular vendor**, they give you a lot of flexibility around how you build your tracing and metrics framework.
+
+#### Old Version - Spring Cloud Sleuth and Zipkin
+- In this project, we will be using Spring Cloud Sleuth and Zipkin
+    ```groovy
+        // When using Spring Boot 3.x and Spring Cloud 2022.x
+        implementation 'org.springframework.cloud:spring-cloud-starter-sleuth:3.1.7'
+        implementation 'org.springframework.cloud:spring-cloud-sleuth-zipkin:3.1.7'  
+    ```
+    - Set Spring Cloud Sleuth properties based on the [documentation](https://docs.spring.io/spring-cloud-sleuth/docs/current-SNAPSHOT/reference/html/appendix.html)
+    - Start Zipkin Server by running `docker run -d -p 9411:9411 openzipkin/zipkin` (accessible on `localhost:9411`)
+    - Note that [Spring Cloud Sleuth](https://github.com/spring-cloud/spring-cloud-sleuth/tree/3.1.x) is now deprecated in favour of `Micrometer`
+      > Spring Cloud Sleuth will not work with Spring Boot 3.x onward. The last major version of Spring Boot that Sleuth will support is 2.x.
+
+      ![Spring Cloud Sleuth Not Compatible with Spring Cloud 2022.](/figure/DistributedTracing_SpringCloudSleuthDeprecation.png)
+      **Note: Spring Cloud Sleuth is [not compatible](https://stackoverflow.com/questions/74191028/spring-boot-2-6-incompatible-with-cloud-sleuth-3-1-4) with [Release Train]((https://spring.io/projects/spring-cloud)) for Spring Cloud 2022.0.x / Spring Boot 3.0.x**
+    - To resolve this error temporarily, we can disable compatibility verification via `spring.cloud.compatibility-verifier.enabled=false`
+    - However, this is suspected to lead to errors with missing Trace and Span IDs:
+      ![Missing Trace and Span IDs](/figure/DistributedTracing_ExpectedVsActualTraceSpan.png)
+- Additionally, we would also notice that sending a request to the `/api/order` endpoint will result in 2 different Trace IDs:
+  ![Different Trace IDs for `inventory-service` and `order-service`](/figure/DistributedTracing_ExpectedvsActualTraceId.png)
+    - The difference in Trace ID is due to Circuit Breaker's `@Retry`, which is a **separate thread** from the main thread
+    - Disabling the Circuit Breaker will temporarily resolve this issue
+    - However, for long term resolution, we should specify the next Span ID (to link with the current Trace ID):
+      ```java
+      public class OrderService {
+          // Other code ...
+          private final Tracer tracer;
+      
+          public String placeOrder(OrderRequest orderRequest) {
+              // Other code ...
+              // Specify a span named "InventoryServiceLookup" to wrap around the call to inventory-service
+              Span inventoryServiceLookup = tracer.nextSpan().name("InventoryServiceLookup");
+              
+              // Wrap the call to inventory-service in a try-finally block to ensure the span is closed
+              try (Tracer.SpanInScope spanInScope = tracer.withSpan(inventoryServiceLookup.start())) {
+                  // Other code ...
+              } finally {
+                  inventoryServiceLookup.end();
+              }
+          }
+      }
+      ```
+  **Note the above code is for Spring Cloud Sleuth (Spring Boot 2.x). Therefore, the code will not compile for Spring Boot 3.x, and we will replace them with Micrometer Tracing for Spring Boot 3.x**
+- If we prefer to stick to the above, we will need the following changes to `build.gradle`:
+    1. `id 'org.springframework.boot' version '2.7.7' apply true` ([Referenced Version](https://github.com/spring-cloud/spring-cloud-release/wiki/Spring-Cloud-2021.0-Release-Notes))
+    2. `set('springCloudVersion', "2021.0.7")`
+    3. `implementation 'org.springframework.cloud:spring-cloud-starter-sleuth'` (Use default version provided)
+    4. `implementation 'org.springframework.cloud:spring-cloud-sleuth-zipkin'` (Use default version provided)
+    5. Change `import jakarta.persistence.*;` to `import javax.persistence.*;` for `Order.java` and `OrderLineItems.java`
+    6. Fix other import errors
+- Using Spring Boot 2.x and Spring Cloud 2021.x, the behaviours are as expected:
+    - **Product Tracing:**
+      ![Product Tracing Works](/figure/DistributedTracing_CorrectProductTracing.png)
+    - **Order Tracing:**
+      ![Order Tracing Overview](/figure/DistributedTracing_CorrectOrderTracing(Overview).png)
+      ![Order Tracing API Gateway](/figure/DistributedTracing_CorrectOrderTracing(APIGateway).png)
+      ![Order Tracing InventoryServiceLookup](/figure/DistributedTracing_CorrectOrderTracing(InventoryServiceLookup).png)
+
+#### Micrometer Tracing and Zipkin Brave
+- Some useful articles:
+    - https://spring.io/blog/2022/10/12/observability-with-spring-boot-3
+    - https://www.appsdeveloperblog.com/micrometer-and-zipkin-in-spring-boot/
+- In the case where we prefer Spring Boot 3.x, we will have to switch to Micrometer Tracing (to handle both metrics & tracing)
+- Installations, different usages and testings can be found in [Micrometer Docs](https://micrometer.io/docs/tracing)
+- Notes:
+    1. `management.zipkin.tracing.endpoint` is enabled by Spring's `actuator` library
+    2. Create an observability metric using:
+    ```java
+            // Create a span, name it and register it
+            Observation inventoryServiceObservation = Observation.createNotStarted(
+                    "inventory-service-lookup",
+                    this.observationRegistry
+            );
+            // Add a tag of key="call", value="inventory-service" for easy lookup
+            inventoryServiceObservation.lowCardinalityKeyValue("call", "inventory-service");
+    ```
+    3. View the created metric for observability from `http://localhost:<port>/actuator/metrics/<spanName>`
+       ![Observability Metrics Available from Actuator Page](/figure/DistributedTracing_ActuatorObservabilityMetric.png)
+- However, the above code does not seem to resolve the Trace ID problem
+    - From the Zipkin UI, we can see that there are 4 separate Trace IDs created for 1 order-service invocation
+      ![Order Tracing Micrometer Error Overview](/figure/DistributedTracing_ErrorneousMicrometerOrderTracing(Overview).png)
+    - Looking at the Spring Boot Logs, we confirm that the 4 Trace IDs correspond to:
+      ![Order Tracing Micrometer Error Logs](/figure/DistributedTracing_ErrorneousMicrometerOrderTracing(Logs).png)
+        1. Order Controller
+        2. Order Service
+        3. Inventory Controller (2 webclient invocations from Order Service)
+    - Therefore, it is suspected that:
+        1. Order Controller's `supplyAsync` function created a "new Thread" (therefore, Order Controller's Trace ID differs from Order Service)
+           ![Suspect `supplyAsync` Created "New Threads"](/figure/DistributedTracing_ErrorneousMicrometerOrderTracing(SuspectAsync).png)
+        2. Order Service's `inventoryServiceObservation.observe()` failed to capture the `webClientBuilder` invocations
+- To fix the Trace ID difference between `order-service`'s `OrderController` and `OrderService` due to `CompletableFuture.supplyAsync`, specify the Trace ID explicitly in `OrderController`:
+    - Replace `return CompletableFuture.supplyAsync(() -> orderService.placeOrder(orderRequest));` with the following:
+      ```java
+      // Instead of starting a new trace ID due to CompletableFuture, use the current trace ID
+      Span currentSpan = tracer.nextSpan().name("OrderService-SupplyAsync");
+  
+      return CompletableFuture.supplyAsync(() -> {
+          try (Tracer.SpanInScope spanInScope = tracer.withSpan(currentSpan.start())) {
+              return orderService.placeOrder(orderRequest);
+          } finally {
+              currentSpan.end(); // End the current span to ensure proper tracing
+          }
+      });
+      ```
+    - Based on [Article 1](https://betterprogramming.pub/tracing-in-spring-boot-3-webflux-d432d0c78d3e), [Stackoverflow 1](https://stackoverflow.com/questions/75920222/micrometer-tracing-brave-rest-template-web-client), [Stackoverflow 2](https://stackoverflow.com/questions/75537207/spring-boot-3-0-2-microservices-with-micrometer-child-is-getting-different-trac), we deduce the following fixes for different Trace IDs when making a `WebClient` API call:
+        - **Approach #1: Manually include request headers and parse request headers for tracing**
+            - For all API calls, append the trace and span ID for destination service to parse and continue the trace:
+              ```java
+              webClientBuilder.build().post()
+                  .uri("http://inventory-service/api/inventory/decrement")
+                  .header("X-B3-TraceId", tracer.currentSpan().context().traceId())
+                  .header("X-B3-SpanId", tracer.currentSpan().context().spanId())
+                  .bodyValue(inventoryRequests)
+                  .retrieve()
+                  .bodyToMono(Void.class)
+                  .block();
+              ```
+            - For all destination service, parse the request header and continue the trace:
+                ```java
+                Span childSpan = tracer.spanBuilder().setParent(
+                        tracer.traceContextBuilder()
+                                .traceId(request.getHeader("X-B3-TraceId"))
+                                .spanId(request.getHeader("X-B3-SpanId"))
+                                .build()).name("inventory-controller-decrementQuantity").start();
+              
+                try (Tracer.SpanInScope spanInScope = tracer.withSpan(childSpan)) {
+                    inventoryService.decrementQuantity(inventoryRequest);
+                } finally {
+                    childSpan.end(); // End the child span
+                }
+                ```
+                - After the `.start()`, all subsequent actions and logging will be captured under the child span (thus same Trace ID)
+                - However, from the Zipkin UI, we can see that there is still a separate Trace ID created for the API call to `inventory-service`
+                  ![Zipkin UI Demonstrating Disjointed Trace IDs](/figure/DistributedTracing_Approach1ZipkinUI.png)
+                  ![Console Log Demonstrating 3 Separate Trace IDs](/figure/DistributedTracing_Approach1LogConsole.png)
+                - Note that Spring Sleuth uses the above headers (`X-B3-traceId`, `X-B3-spanId`) to propagate the trace context. Therefore, if we are using Spring Sleuth, we can probably get it to work without manually parsing the headers (the 2nd code block)
+        - **Approach #2: Manually include request headers for Micrometer to automatically parse**
+            - For all API calls, append the trace and span ID for destination service to parse and continue the trace:
+              ```java
+              webClientBuilder.build().post()
+                  .uri("http://inventory-service/api/inventory/decrement")
+                  .header("traceparent", "00-"+tracer.currentSpan().context().traceId()+"-"+tracer.currentSpan().context().spanId()+"-01")
+                  .bodyValue(inventoryRequests)
+                  .retrieve()
+                  .bodyToMono(Void.class)
+                  .block();
+              ```
+                - For all destination service, we do not need to make changes to the code
+                - Micrometer uses `traceparent` header by default [W3 HTTP Standards for Distributed Tracing](https://www.w3.org/TR/trace-context/). Thus, it will automatically parse the headers and continue the trace without manually setting the parent span (as in Approach #1)
+                - From the Zipkin UI, the separate Trace ID created for the API call to `inventory-service` is resolved
+                  ![Zipkin UI Demonstrating 1 Trace ID](/figure/DistributedTracing_Approach2ZipkinUI.png)
+                  ![Console Log Demonstrating 1 Trace ID](/figure/DistributedTracing_Approach2LogConsole.png)
+                - However, the above approach is not recommended as it is difficult to maintain (need to manually append headers for all `WebClient` instances).
+                - Additionally, the `00` and `-01` are hardcoded values that may change in the future / different circumstances
+        - **Approach #3: Change the `webclient` bean for Micrometer to autoconfigure the tracings** [Pending Fix]
+            - Make the following changes to `order-service`'s `WebClientConfig.java` file:
+          ```java
+          @Bean
+          @LoadBalanced
+          public WebClient.Builder webClientBuilder() {
+              return WebClient.builder();
+          }
+        
+          @Bean
+          public WebClient webClient(WebClient.Builder builder) {
+              return builder.build();
+          }
+          ```
+            - The problem: `traceparent` header is missing from WebClient API calls to `inventory-service`, therefore causing a disjointed trace ID
+            - According to [Spring Boot Propagating Traces](https://docs.spring.io/spring-boot/docs/current/reference/html/actuator.html#actuator.micrometer-tracing:~:text=traceId%3A%2D%7D%2C%25X%7BspanId%3A%2D%7D%5D-,8.3.%20Propagating%20Traces,-To%20automatically%20propagate)
+              > To automatically propagate traces over the network, use the auto-configured RestTemplateBuilder or WebClient.Builder to construct the client.
+            - We can prove that `traceparent` header is missing / present by:
+                1. Printing the request headers from `HttpServletRequest` request in Controller class
+                   ```java
+                   Enumeration<String> headerNames = request.getHeaderNames();
+                   while(headerNames.hasMoreElements()) {
+                       String headerName = (String)headerNames.nextElement();
+                       log.info("headerName: " + headerName + "; headerValue: " + request.getHeader(headerName));
+                   }
+                   ```
+                2. Making WebClient calls to `inventory-service` from either `order-service` or through [external code](https://github.com/micrometer-metrics/micrometer-samples/blob/main/webclient/src/main/java/com/example/micrometer/WebClientApplication.java)
+            - From the above testing, we gather the following observations:
+
+              | Code                                                                                        | Remark                                                            | `traceparent` header present? |
+              |---------------------------------------------------------------------------------------------|-------------------------------------------------------------------|-------------------------------|
+              | `WebClient.builder().build().get()...`                                                      | Without any injected Beans                                        | No                            |
+              | `WebClient.Builder builder = WebClient.builder(); return builder.build().get()...`          | Defining `WebClient.Builder` locally                              | No                            |
+              | `private final WebClient.Builder webClientBuilder; return webClientBuilder.build().get()...`| Without `WebClient.Builder` bean explicitly defined               | Yes                           |
+              | `private final WebClient.Builder webClientBuilder; return webClientBuilder.build().get()...`| With `WebClient.Builder` bean explicitly defined                  | No                            |
+              | `private final WebClient webClient; return webClient.get()...`                              | `WebClient` bean must be explicitly defined                       | Yes                           |
+              | `private final WebClient webClient; return webClient.get()...`                              | Both `WebClient.Builder` and `WebClient` bean explicitly defined  | No                            |
+
+        - Notes:
+            1. Without `@LoadBalanced` annotation, our `WebClient` URI must point to a specific host (e.g. `localhost:12345/api/order`) instead of a service name (e.g. `order-service/api/order`)
+            2. When using `@LoadBalanced` annotation, cannot define a `WebClient` bean without `WebClient.Builder`
+        - From the above, we observe that:
+            1. If `WebClient.Builder` bean is defined, we will not be using Spring's autoconfigured `WebClient` for trace propagation.
+        - Therefore, we will need a way to incorporate `@LoadBalanced` with `WebClient` autoconfiguration.
+          - Possible Approach #1: Move `@LoadBalanced` to a Java POJO format without annotations
+          - Possible Approach #2: Manually define a `WebClient.Builder` bean to autoconfigure the tracings 
+        - Currently checking with the [Micrometer Slack Community](https://app.slack.com/client/T66JW8GM8/C030GTHE4P6/thread/C030GTHE4P6-1689910178.196599)
+          ![Question to Micrometer Slack Community](/figure/DistributedTracing_Approach3SlackQuestion.png)
+
+
+- Other failed attempts:
+    1. Wrapping all API calls with another `tracer.nextSpan()` syntax
+    2. Using `Hooks.enableAutomaticContextPropagation();` at the application's `main` function
+
+- Note that there are many complications with the migration of Spring Sleuth (Spring Boot 2.x) to Micrometer (Spring Boot 3.x). They include MVC vs WebFlux, Zipkin Brave vs OpenTelemetry, context propagation (ThreadLocal, Async, etc.), syntax changes (incl. headers)
+    - For more information, can read up on [Stackoverflow](https://stackoverflow.com/questions/tagged/micrometer-tracing) and [Micrometer Guide](https://micrometer.io/docs/observation)
 
 
 ## Spring Boot Logging
