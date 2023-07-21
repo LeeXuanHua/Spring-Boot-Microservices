@@ -4,7 +4,6 @@ import com.microservices.inventoryservice.dto.InventoryRequest;
 import com.microservices.inventoryservice.dto.InventoryResponse;
 import com.microservices.inventoryservice.repository.InventoryRepository;
 import lombok.RequiredArgsConstructor;
-import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,7 +23,6 @@ public class InventoryService {
 //        log.info("Wait started");
 //        Thread.sleep(10_000);
 //        log.info("Wait ended"); // Logged after 10s (by then, the circuit breaker will have thrown a timeout exception in order-service)
-
         return inventoryRepository.findBySkuCodeIn(skuCode).stream()
                 .map(inventory ->
                     InventoryResponse.builder()
