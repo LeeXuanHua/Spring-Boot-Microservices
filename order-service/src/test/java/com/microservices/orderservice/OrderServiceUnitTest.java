@@ -7,6 +7,9 @@ import com.microservices.orderservice.model.Order;
 import com.microservices.orderservice.model.OrderLineItems;
 import com.microservices.orderservice.repository.OrderRepository;
 import com.microservices.orderservice.service.OrderService;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.TraceContext;
+import io.micrometer.tracing.Tracer;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -36,6 +39,8 @@ import static org.mockito.Mockito.*;
 @MockitoSettings(strictness = Strictness.LENIENT)   // https://stackoverflow.com/questions/42947613/how-to-resolve-unneccessary-stubbing-exception
 class OrderServiceUnitTest {
     @Mock
+    private Tracer tracer;
+    @Mock
     private OrderRepository orderRepository;
     @InjectMocks
     private OrderService orderService;
@@ -45,6 +50,7 @@ class OrderServiceUnitTest {
     private String skuCode;
     private BigDecimal price;
     private int quantity;
+    private Span span;
 
     @BeforeEach
     void setUp() {
@@ -53,6 +59,17 @@ class OrderServiceUnitTest {
         skuCode = UUID.randomUUID().toString();
         price = BigDecimal.valueOf(new Random().nextDouble());
         quantity = new Random().nextInt();
+
+        // Mock all instances of the Tracer class
+        span = Mockito.mock(Span.class);
+        TraceContext traceContext = Mockito.mock(TraceContext.class);
+        when(tracer.currentSpan()).thenReturn(span);
+        when(span.context()).thenReturn(traceContext);
+        when(span.context()).thenReturn(traceContext);
+        when(traceContext.traceId()).thenReturn(UUID.randomUUID().toString());
+        when(traceContext.spanId()).thenReturn(UUID.randomUUID().toString());
+
+        when(span.event(anyString())).thenReturn(span);
     }
 
     @DisplayName("Order placement for multiple products, including duplicate products")
@@ -131,6 +148,7 @@ class OrderServiceUnitTest {
 //        when(uriBuilder.queryParam(any(String.class), any(List.class))).thenReturn(uriBuilder);     // Unnecessary stubbing - Resolved by defining as lenient
 //        when(uriBuilder.build()).thenReturn(uri);                                                   // Unnecessary stubbing - Resolved by defining as lenient
         when(requestHeadersUriSpec.uri(any(String.class), any(Function.class))).thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.header(any(String.class), any())).thenReturn(requestHeadersSpec);     // Added for traceparent headers
         when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
         when(responseSpec.bodyToMono(InventoryResponse[].class)).thenReturn(Mono.just(inventoryResponse));
 
@@ -140,6 +158,7 @@ class OrderServiceUnitTest {
 
         when(webClient.post()).thenReturn(requestBodyUriSpec);
         when(requestBodyUriSpec.uri(any(String.class))).thenReturn(requestBodySpec);
+        when(requestBodySpec.header(any(String.class), any())).thenReturn(requestBodySpec);     // Added for traceparent headers
         when(requestBodySpec.bodyValue(any(List.class))).thenReturn(requestHeadersSpec);
         when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
         when(responseSpec.bodyToMono(Void.class)).thenReturn(Mono.empty());
@@ -161,6 +180,9 @@ class OrderServiceUnitTest {
             verify(webClientBuilder.build(), times(1)).get();
             verify(webClientBuilder.build(), times(1)).post();
 
+            // Verify that the span events were created
+            verify(span, times(2)).event(anyString());
+
         } else {
             // If one of the products is out of stock, the order should not be placed
             // Verify that error is thrown
@@ -169,6 +191,9 @@ class OrderServiceUnitTest {
 
             // Verify that the repository's save method was never called
             verify(orderRepository, never()).save(Mockito.any(Order.class));
+
+            // Verify that only 1 span event was created
+            verify(span, times(1)).event(anyString());
         }
     }
 
@@ -199,6 +224,7 @@ class OrderServiceUnitTest {
         when(webClientBuilder.build()).thenReturn(webClient);
         when(webClient.get()).thenReturn(requestHeadersUriSpec);
         when(requestHeadersUriSpec.uri(any(String.class), any(Function.class))).thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.header(any(String.class), any())).thenReturn(requestHeadersSpec);     // Added for traceparent headers
         when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
         when(responseSpec.bodyToMono(InventoryResponse[].class)).thenReturn(mono);
         when(mono.block()).thenReturn(null);
@@ -209,6 +235,9 @@ class OrderServiceUnitTest {
 
         // Verify that the repository's save method was never called
         verify(orderRepository, never()).save(Mockito.any(Order.class));
+
+        // Verify that only 1 span event was created
+        verify(span, times(1)).event(anyString());
     }
 
     @Test
@@ -237,6 +266,7 @@ class OrderServiceUnitTest {
         when(webClientBuilder.build()).thenReturn(webClient);
         when(webClient.get()).thenReturn(requestHeadersUriSpec);
         when(requestHeadersUriSpec.uri(any(String.class), any(Function.class))).thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.header(any(String.class), any())).thenReturn(requestHeadersSpec);     // Added for traceparent headers
         when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
         when(responseSpec.bodyToMono(InventoryResponse[].class)).thenReturn(mono);
         when(mono.block()).thenReturn(inventoryResponse);
@@ -247,6 +277,9 @@ class OrderServiceUnitTest {
 
         // Verify that the repository's save method was never called
         verify(orderRepository, never()).save(Mockito.any(Order.class));
+
+        // Verify that only 1 span event was created
+        verify(span, times(1)).event(anyString());
     }
 
     @Test
