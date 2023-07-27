@@ -6,15 +6,12 @@ import com.microservices.orderservice.dto.OrderLineItemsDto;
 import com.microservices.orderservice.dto.OrderRequest;
 import com.microservices.orderservice.repository.OrderRepository;
 import io.micrometer.tracing.Span;
-import io.micrometer.tracing.TraceContext;
 import io.micrometer.tracing.Tracer;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.runner.RunWith;
-import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -41,7 +38,6 @@ import java.util.UUID;
 import java.util.function.Function;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
@@ -67,6 +63,8 @@ public class OrderServiceApplicationIntegrationTest {
     private OrderRepository orderRepository;
     @MockBean
     private WebClient.Builder webClientBuilder;
+    @MockBean
+    private WebClient webClient;
     private String skuCode;
     private BigDecimal price;
     private int quantity;
@@ -116,15 +114,14 @@ public class OrderServiceApplicationIntegrationTest {
         };
 
         // Mock WebClient's initial call to the inventory service to obtain the inventory status of the products
-        WebClient webClient = mock(WebClient.class);
+//        WebClient webClient = mock(WebClient.class);
         WebClient.RequestHeadersUriSpec requestHeadersUriSpec = mock(WebClient.RequestHeadersUriSpec.class);
         WebClient.RequestHeadersSpec requestHeadersSpec = mock(WebClient.RequestHeadersSpec.class);
         WebClient.ResponseSpec responseSpec = mock(WebClient.ResponseSpec.class);
 
-        when(webClientBuilder.build()).thenReturn(webClient);
         when(webClient.get()).thenReturn(requestHeadersUriSpec);
         when(requestHeadersUriSpec.uri(any(String.class), any(Function.class))).thenReturn(requestHeadersSpec);
-        when(requestHeadersSpec.header(any(String.class), any())).thenReturn(requestHeadersSpec);     // Added for traceparent headers
+//        when(requestHeadersSpec.header(any(String.class), any())).thenReturn(requestHeadersSpec);     // Added for traceparent headers
         when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
         when(responseSpec.bodyToMono(InventoryResponse[].class)).thenReturn(Mono.just(inventoryResponse));
 
@@ -132,9 +129,10 @@ public class OrderServiceApplicationIntegrationTest {
         WebClient.RequestBodyUriSpec requestBodyUriSpec = mock(WebClient.RequestBodyUriSpec.class);
         WebClient.RequestBodySpec requestBodySpec = mock(WebClient.RequestBodySpec.class);
 
+        when(webClientBuilder.build()).thenReturn(webClient);
         when(webClient.post()).thenReturn(requestBodyUriSpec);
         when(requestBodyUriSpec.uri(any(String.class))).thenReturn(requestBodySpec);
-        when(requestBodySpec.header(any(String.class), any())).thenReturn(requestBodySpec);     // Added for traceparent headers
+//        when(requestBodySpec.header(any(String.class), any())).thenReturn(requestBodySpec);     // Added for traceparent headers
         when(requestBodySpec.bodyValue(any(List.class))).thenReturn(requestHeadersSpec);
         when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
         when(responseSpec.bodyToMono(Void.class)).thenReturn(Mono.empty());

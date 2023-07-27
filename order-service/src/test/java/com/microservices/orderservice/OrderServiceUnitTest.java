@@ -46,6 +46,8 @@ class OrderServiceUnitTest {
     private OrderService orderService;
     @Mock
     private WebClient.Builder webClientBuilder;
+    @Mock
+    private WebClient webClient;
     private long id;
     private String skuCode;
     private BigDecimal price;
@@ -135,7 +137,7 @@ class OrderServiceUnitTest {
         List<String> skuCodes = List.of(skuCode1, skuCode2);
 
         // Mock WebClient's initial call to the inventory service to obtain the inventory status of the products
-        WebClient webClient = mock(WebClient.class);
+//        WebClient webClient = mock(WebClient.class);
         WebClient.RequestHeadersUriSpec requestHeadersUriSpec = mock(WebClient.RequestHeadersUriSpec.class);
         WebClient.RequestHeadersSpec requestHeadersSpec = mock(WebClient.RequestHeadersSpec.class);
         WebClient.ResponseSpec responseSpec = mock(WebClient.ResponseSpec.class);
@@ -143,7 +145,6 @@ class OrderServiceUnitTest {
 //        URI uri = mock(URI.class);
 //        Function<UriBuilder, URI> function = a -> a.queryParam("skuCode", skuCodes).build();
 
-        when(webClientBuilder.build()).thenReturn(webClient);
         when(webClient.get()).thenReturn(requestHeadersUriSpec);
 //        when(uriBuilder.queryParam(any(String.class), any(List.class))).thenReturn(uriBuilder);     // Unnecessary stubbing - Resolved by defining as lenient
 //        when(uriBuilder.build()).thenReturn(uri);                                                   // Unnecessary stubbing - Resolved by defining as lenient
@@ -156,6 +157,7 @@ class OrderServiceUnitTest {
         WebClient.RequestBodyUriSpec requestBodyUriSpec = mock(WebClient.RequestBodyUriSpec.class);
         WebClient.RequestBodySpec requestBodySpec = mock(WebClient.RequestBodySpec.class);
 
+        when(webClientBuilder.build()).thenReturn(webClient);
         when(webClient.post()).thenReturn(requestBodyUriSpec);
         when(requestBodyUriSpec.uri(any(String.class))).thenReturn(requestBodySpec);
         when(requestBodySpec.header(any(String.class), any())).thenReturn(requestBodySpec);     // Added for traceparent headers
@@ -215,13 +217,11 @@ class OrderServiceUnitTest {
                 new InventoryResponse(skuCode, true)
         };
 
-        WebClient webClient = mock(WebClient.class);
         WebClient.RequestHeadersUriSpec requestHeadersUriSpec = mock(WebClient.RequestHeadersUriSpec.class);
         WebClient.RequestHeadersSpec requestHeadersSpec = mock(WebClient.RequestHeadersSpec.class);
         WebClient.ResponseSpec responseSpec = mock(WebClient.ResponseSpec.class);
         Mono mono = mock(Mono.class);
 
-        when(webClientBuilder.build()).thenReturn(webClient);
         when(webClient.get()).thenReturn(requestHeadersUriSpec);
         when(requestHeadersUriSpec.uri(any(String.class), any(Function.class))).thenReturn(requestHeadersSpec);
         when(requestHeadersSpec.header(any(String.class), any())).thenReturn(requestHeadersSpec);     // Added for traceparent headers
@@ -257,13 +257,11 @@ class OrderServiceUnitTest {
                 new InventoryResponse(skuCode, true)
         };
 
-        WebClient webClient = mock(WebClient.class);
         WebClient.RequestHeadersUriSpec requestHeadersUriSpec = mock(WebClient.RequestHeadersUriSpec.class);
         WebClient.RequestHeadersSpec requestHeadersSpec = mock(WebClient.RequestHeadersSpec.class);
         WebClient.ResponseSpec responseSpec = mock(WebClient.ResponseSpec.class);
         Mono mono = mock(Mono.class);
 
-        when(webClientBuilder.build()).thenReturn(webClient);
         when(webClient.get()).thenReturn(requestHeadersUriSpec);
         when(requestHeadersUriSpec.uri(any(String.class), any(Function.class))).thenReturn(requestHeadersSpec);
         when(requestHeadersSpec.header(any(String.class), any())).thenReturn(requestHeadersSpec);     // Added for traceparent headers
