@@ -90,6 +90,7 @@ Refer to [Testing](./Testing.md).
 2. Implemented testings & added Jacoco for test coverage (editing the tests cases alongside the code and using `lombok.config`)
 3. Handled MySQL login credentials as environment variables (instead of hardcoding in `application.properties`)
 4. Fixed versioning issues (Spring Boot, Spring Security, Eureka Server, OIDC Authentication, etc)
+5. Fixed distributed tracing issues (Migrating from Spring Sleuth to Micrometer; Fixing disjointed Trace IDs with the help of Micrometer Slack Community)
 
 
 ## Notes & Learnings

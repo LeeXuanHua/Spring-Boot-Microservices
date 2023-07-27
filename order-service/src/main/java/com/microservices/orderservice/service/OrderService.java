@@ -27,7 +27,8 @@ import java.util.UUID;
 @Slf4j
 public class OrderService {
     private final OrderRepository orderRepository;
-    private final WebClient.Builder webClientBuilder;
+    private final WebClient.Builder webClientBuilder;   // Proof that both WebClient.Builder and WebClient beans are instrumented with Micrometer correctly
+    private final WebClient webClient;                  // Proof that both WebClient.Builder and WebClient beans are instrumented with Micrometer correctly
     private final ObservationRegistry observationRegistry;
     private final Tracer tracer;
 
@@ -64,10 +65,10 @@ public class OrderService {
         return inventoryServiceObservation.observe(() -> {
             log.info("Get request to inventory service");
             // Call inventory-service and place order if product is in stock
-            InventoryResponse[] inventoryResponseArray = webClientBuilder.build().get()
+            InventoryResponse[] inventoryResponseArray = webClient.get()
                     .uri("http://inventory-service/api/inventory",
                             uriBuilder -> uriBuilder.queryParam("skuCode", skuCodes).build())
-                    .header("traceparent", "00-"+tracer.currentSpan().context().traceId()+"-"+tracer.currentSpan().context().spanId()+"-01")
+//                    .header("traceparent", "00-"+tracer.currentSpan().context().traceId()+"-"+tracer.currentSpan().context().spanId()+"-01")
 //                    .header("X-B3-TraceId", tracer.currentSpan().context().traceId())
 //                    .header("X-B3-SpanId", tracer.currentSpan().context().spanId())
                     .retrieve()
@@ -105,7 +106,7 @@ public class OrderService {
                 log.info("Post request to inventory service");
                 webClientBuilder.build().post()
                         .uri("http://inventory-service/api/inventory/decrement")
-                        .header("traceparent", "00-"+tracer.currentSpan().context().traceId()+"-"+tracer.currentSpan().context().spanId()+"-01")
+//                        .header("traceparent", "00-"+tracer.currentSpan().context().traceId()+"-"+tracer.currentSpan().context().spanId()+"-01")
 //                        .header("X-B3-TraceId", tracer.currentSpan().context().traceId())
 //                        .header("X-B3-SpanId", tracer.currentSpan().context().spanId())
                         .bodyValue(inventoryRequests)

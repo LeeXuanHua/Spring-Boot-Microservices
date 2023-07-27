@@ -27,7 +27,8 @@
    - [Analysing Our Java Spring Boot Code](#analysing-our-java-spring-boot-code)
    - [Other Spring Security Features Pending Implementation](#other-spring-security-features-pending-implementation)
 7. [Distributed Tracing](#distributed-tracing)
-8. [Spring Boot Logging](#spring-boot-logging)
+8. [Apache Kafka](#messaging--apache-kafka-)
+9. [Spring Boot Logging](#spring-boot-logging)
 
 ## Gradle
 1. Clean, rebuild and run project
@@ -91,17 +92,21 @@
     - `gradle.properties`: contains the properties for Gradle
 
 ### Annotations
-- `@Service` annotation is used to mark the class as a service provider
-- `@Autowired` annotation is used to inject the dependency automatically
-- `@Transactional` annotation is used to define the scope of a single database transaction
-- `@RequiredArgsConstructor` annotation is used to generate a constructor with required arguments
-- `@Slf4j` annotation is used to generate a logger field
-- `@Builder` annotation is used to generate builder methods
-- `@AllArgsConstructor` annotation is used to generate a constructor with all arguments
-- `@NoArgsConstructor` annotation is used to generate a constructor with no arguments
-- `@Data` annotation is used to generate @ToString, @EqualsAndHashCode, @Getter / @Setter and @RequiredArgsConstructor
-- `@Document` annotation is used to define as a MongoDB document
-- `@Id` annotation is used to specify as the unique identifier
+- Creating annotations: https://reflectoring.io/java-annotation-processing/
+  - Use `@interface` to define annotations
+  - Annotation definition can accept meta annotations
+- Common Spring Boot / Lombok annotations:
+  - `@Service` annotation is used to mark the class as a service provider
+  - `@Autowired` annotation is used to inject the dependency automatically
+  - `@Transactional` annotation is used to define the scope of a single database transaction
+  - `@RequiredArgsConstructor` annotation is used to generate a constructor with required arguments
+  - `@Slf4j` annotation is used to generate a logger field
+  - `@Builder` annotation is used to generate builder methods
+  - `@AllArgsConstructor` annotation is used to generate a constructor with all arguments
+  - `@NoArgsConstructor` annotation is used to generate a constructor with no arguments
+  - `@Data` annotation is used to generate @ToString, @EqualsAndHashCode, @Getter / @Setter and @RequiredArgsConstructor
+  - `@Document` annotation is used to define as a MongoDB document
+  - `@Id` annotation is used to specify as the unique identifier
 
 ### JPA
 - JPA stands for Java Persistence API
@@ -352,9 +357,6 @@
 
 ### Fault Tolerance
 - Fault Tolerance is used to handle the failure of a service
-
-### Messaging / Message Broker
-- Messaging is used to communicate between microservices
 
 ### Distributed Session
 - Distributed Session is used to manage the session of all the microservices
@@ -768,8 +770,8 @@ third-party application to obtain access on its own behalf.  This specification 
                   ![Console Log Demonstrating 1 Trace ID](/figure/DistributedTracing_Approach2LogConsole.png)
                 - However, the above approach is not recommended as it is difficult to maintain (need to manually append headers for all `WebClient` instances).
                 - Additionally, the `00` and `-01` are hardcoded values that may change in the future / different circumstances
-        - **Approach #3: Change the `webclient` bean for Micrometer to autoconfigure the tracings** [Pending Fix]
-            - Make the following changes to `order-service`'s `WebClientConfig.java` file:
+        - **Approach #3: Change the `webclient` bean for Micrometer to autoconfigure the tracings** [~~Pending Fix~~][Resolved]
+            - **[Failed Attempt]** Make the following changes to `order-service`'s `WebClientConfig.java` file:
           ```java
           @Bean
           @LoadBalanced
@@ -805,18 +807,43 @@ third-party application to obtain access on its own behalf.  This specification 
               | `private final WebClient.Builder webClientBuilder; return webClientBuilder.build().get()...`| With `WebClient.Builder` bean explicitly defined                  | No                            |
               | `private final WebClient webClient; return webClient.get()...`                              | `WebClient` bean must be explicitly defined                       | Yes                           |
               | `private final WebClient webClient; return webClient.get()...`                              | Both `WebClient.Builder` and `WebClient` bean explicitly defined  | No                            |
-
-        - Notes:
-            1. Without `@LoadBalanced` annotation, our `WebClient` URI must point to a specific host (e.g. `localhost:12345/api/order`) instead of a service name (e.g. `order-service/api/order`)
-            2. When using `@LoadBalanced` annotation, cannot define a `WebClient` bean without `WebClient.Builder`
-        - From the above, we observe that:
-            1. If `WebClient.Builder` bean is defined, we will not be using Spring's autoconfigured `WebClient` for trace propagation.
-        - Therefore, we will need a way to incorporate `@LoadBalanced` with `WebClient` autoconfiguration.
-          - Possible Approach #1: Move `@LoadBalanced` to a Java POJO format without annotations
-          - Possible Approach #2: Manually define a `WebClient.Builder` bean to autoconfigure the tracings 
+          - Notes:
+              1. Without `@LoadBalanced` annotation, our `WebClient` URI must point to a specific host (e.g. `localhost:12345/api/order`) instead of a service name (e.g. `order-service/api/order`)
+              2. When using `@LoadBalanced` annotation, cannot define a `WebClient` bean without `WebClient.Builder`
+          - From the above, we observe that:
+              1. If `WebClient.Builder` bean is defined, we will not be using Spring's autoconfigured `WebClient` for trace propagation.
+          - Therefore, we will need a way to incorporate `@LoadBalanced` with `WebClient` autoconfiguration.
+            - Possible Approach #1: Move `@LoadBalanced` to a Java POJO format without annotations
+            - Possible Approach #2: Manually define a `WebClient.Builder` bean to autoconfigure the tracings 
         - Currently checking with the [Micrometer Slack Community](https://app.slack.com/client/T66JW8GM8/C030GTHE4P6/thread/C030GTHE4P6-1689910178.196599)
           ![Question to Micrometer Slack Community](/figure/DistributedTracing_Approach3SlackQuestion.png)
-
+          ![Reply by Micrometer Maintainer](/figure/DistributedTracing_Approach3SlackReply.png)
+          - Based on Jonatan & Marcin's reply, I observed the `WebClient` object through the debugger:
+            ![Comparison of WebClient Object When WebClient.Builder Bean is Defined Or Not](/figure/DistributedTracing_Approach3SlackDebugWebClient.png)
+          - From the above, we observe that if the `WebClient.Builder` bean is explicitly defined, then the `WebClient` object will not be autoconfigured with the tracings (`observationRegistry=NoopObservationRegistry` and `observationConvention=null`)
+          - On the other hand, without explicitly defining the `WebClient.Builder` bean, the `WebClient` object will be autoconfigured with the tracings (`observationRegistry=SimpleObservationRegistry` and `observationConvention=DefaultClientRequestObservationConvention`)
+          - In fact, the `WebClient` object inherits the tracings / observation instrumentation from the `WebClient.Builder` object (notice the same object ID)
+        - Therefore, this inspired us with the following solution, making changes to `order-service`'s `WebClientConfig.java` file:
+          ```java
+          @Bean
+          @LoadBalanced
+          public WebClient.Builder webClientBuilder(ObservationRegistry observationRegistry) {
+              WebClient.Builder builder = WebClient.builder()
+                  .observationRegistry(observationRegistry)  // Enable micrometer instrumentation (Sets "observationRegistry" property to SimpleObservationRegistry)
+                  .observationConvention(new DefaultClientRequestObservationConvention());    // Sets "observationConvention" property to DefaultClientRequestObservationConvention (with "name"="http.client.request")
+              return builder;
+          }
+          
+          @Bean
+          public WebClient webClient(WebClient.Builder builder) {
+              return builder.build();
+          }
+          ```
+          - Note that the `WebClient` bean is no longer compulsory, as we can use `WebClient.Builder` to build the `WebClient` object
+            - In our `OrderService.java`, we will use both `WebClient` and `WebClient.Builder` to demonstrate that both works
+          - From the Zipkin UI, the separate Trace ID created for the API call to `inventory-service` is resolved via a more elegant manner
+            ![Zipkin UI Demonstrating 1 Trace ID](/figure/DistributedTracing_Approach3ZipkinUI.png)
+            ![Console Log Demonstrating 1 Trace ID](/figure/DistributedTracing_Approach3LogConsole.png)
 
 - Other failed attempts:
     1. Wrapping all API calls with another `tracer.nextSpan()` syntax
