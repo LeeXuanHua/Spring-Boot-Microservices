@@ -3,6 +3,7 @@ package com.microservices.orderservice;
 import com.microservices.orderservice.dto.InventoryResponse;
 import com.microservices.orderservice.dto.OrderLineItemsDto;
 import com.microservices.orderservice.dto.OrderRequest;
+import com.microservices.orderservice.event.OrderPlacedEvent;
 import com.microservices.orderservice.model.Order;
 import com.microservices.orderservice.model.OrderLineItems;
 import com.microservices.orderservice.repository.OrderRepository;
@@ -23,6 +24,7 @@ import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
@@ -48,6 +50,8 @@ class OrderServiceUnitTest {
     private WebClient.Builder webClientBuilder;
     @Mock
     private WebClient webClient;
+    @Mock
+    private KafkaTemplate<String, OrderPlacedEvent> kafkaTemplate;
     private long id;
     private String skuCode;
     private BigDecimal price;
@@ -178,6 +182,9 @@ class OrderServiceUnitTest {
                     orderRequest.getOrderLineItemsDtoList().stream().map(orderService::mapToOrderLineItem).toList(),
                     orderRepository.findAll().get(0).getOrderLineItemsList());
 
+            // Verify that the KafkaTemplate's send method was called exactly once with the correct parameters
+            verify(kafkaTemplate, times(1)).send(Mockito.any(String.class), Mockito.any(OrderPlacedEvent.class));
+
             // Verify that the webClientBuilder.build()'s get and post methods were called exactly once
             verify(webClientBuilder.build(), times(1)).get();
             verify(webClientBuilder.build(), times(1)).post();
@@ -193,6 +200,9 @@ class OrderServiceUnitTest {
 
             // Verify that the repository's save method was never called
             verify(orderRepository, never()).save(Mockito.any(Order.class));
+
+            // Verify that the KafkaTemplate's send method was never called
+            verify(kafkaTemplate, never()).send(Mockito.any(String.class), Mockito.any(OrderPlacedEvent.class));
 
             // Verify that only 1 span event was created
             verify(span, times(1)).event(anyString());

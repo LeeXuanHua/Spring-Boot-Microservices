@@ -4,6 +4,7 @@ import com.microservices.orderservice.dto.InventoryRequest;
 import com.microservices.orderservice.dto.InventoryResponse;
 import com.microservices.orderservice.dto.OrderLineItemsDto;
 import com.microservices.orderservice.dto.OrderRequest;
+import com.microservices.orderservice.event.OrderPlacedEvent;
 import com.microservices.orderservice.model.Order;
 import com.microservices.orderservice.model.OrderLineItems;
 import com.microservices.orderservice.repository.OrderRepository;
@@ -12,6 +13,7 @@ import io.micrometer.observation.ObservationRegistry;
 import io.micrometer.tracing.Tracer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -31,6 +33,7 @@ public class OrderService {
     private final WebClient webClient;                  // Proof that both WebClient.Builder and WebClient beans are instrumented with Micrometer correctly
     private final ObservationRegistry observationRegistry;
     private final Tracer tracer;
+    private final KafkaTemplate<String, OrderPlacedEvent> kafkaTemplate;
 
     /**
      * Places an order via OrderRequest, which may consist of 1 or more Order. UUIDs are created for each Order
@@ -94,6 +97,7 @@ public class OrderService {
 //                    throw new RuntimeException(e);
 //                }
                 orderRepository.save(order);
+                kafkaTemplate.send("notificationTopic", new OrderPlacedEvent(order.getOrderNumber()));
 
                 List<InventoryRequest> inventoryRequests = order.getOrderLineItemsList().stream()
                         .map(orderLineItem ->
