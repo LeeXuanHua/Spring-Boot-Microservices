@@ -1,0 +1,14 @@
+// Define plugin versions here, but only apply them where we need to
+plugins {
+//	// If want to use Spring Cloud Sleuth, need to use Spring Boot 2.7.7
+//	id 'org.springframework.boot' version '2.7.7' apply false
+    id 'org.springframework.boot' version '3.1.0' apply false
+    id 'io.spring.dependency-management' version '1.1.0' apply false
+    id 'com.google.cloud.tools.jib' version '3.4.0' apply false
+}
+
+ext {
+    set('springCloudVersion', "2022.0.3")
+//	// If want to use Spring Cloud Sleuth, need to use Spring Cloud 2021.0.7
+//	set('springCloudVersion', "2021.0.7")
+}
